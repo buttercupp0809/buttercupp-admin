@@ -1,0 +1,447 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  name               String
+  nickname           String?
+  email              String    @unique
+  passwordHash       String?
+  timezone           String    @default("UTC")
+  country            String?
+  dailySchedule      Json?
+  livingSituation    String?
+  emotionalDrains    String[]
+  emotionalComforts  String[]
+  friendPreferences  String?
+  offLimitTopics     String[]
+  telegramChatId     String?   @unique
+  platform           String    @default("telegram")
+  whatsappPhoneId    String?   @unique
+  imessagePhoneId    String?   @unique
+  subscriptionTier   String    @default("free")
+  isPaused           Boolean   @default(false)
+  pauseUntil         DateTime?
+  onboardingStep     Int       @default(0)
+  onboardingComplete Boolean   @default(false)
+  trialEndsAt        DateTime?
+  memoryPaused       Boolean   @default(false)
+  arrivalResponse    String?
+  age                Int?
+  dateOfBirth        DateTime?
+  ageVerified        Boolean   @default(false)
+  gender             String? // "male", "female", "non-binary", "prefer-not-to-say"
+  preferredGender    String? // "male", "female", "non-binary", "open-to-all"
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  modeWeights              Json?
+  enrichmentQuestionsAsked Json?
+
+  personality        Personality?
+  archetypeAnswers   ArchetypeAnswer?
+  memories           Memory[]
+  events             Event[]
+  messages           Message[]
+  boundary           Boundary?
+  subscription       Subscription?
+  arcs               RelationshipArc[]
+  initiativeLogs     InitiativeLog[]
+  crisisEvents       CrisisEvent[]
+  emotionalPatterns  EmotionalPattern[]
+  conversationChunks ConversationChunk[]
+  usageCounters      UsageCounter[]
+  scheduledPings     ScheduledPing[]
+  persona            UserPersona?
+  memorySummaries    MemorySummary[]
+  emotionalContexts  EmotionalContext[]
+  lastTemplatesUsed  Json?
+}
+
+model Personality {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  primaryArchetype    String   @default("the_witness")
+  secondaryArchetype  String?
+  mirrorCeiling       Int      @default(70)
+  archetypeScores     Json?
+  tone                Float    @default(0.5)
+  honesty             Float    @default(0.5)
+  depth               Float    @default(0.5)
+  initiationFrequency Int      @default(2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Memory {
+  id              String    @id @default(uuid())
+  userId          String
+  type            String
+  content         String
+  importance      String    @default("medium")
+  confidenceScore Float     @default(0.8)
+  source          String    @default("explicit")
+  isPinned        Boolean   @default(false)
+  expiresAt       DateTime?
+  lastAccessedAt  DateTime?
+  accessCount     Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  topic      String?
+  validFrom  DateTime?
+  validUntil DateTime?
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+  summaryId  String?
+  // embedding  Unsupported("vector(384)")? — admin doesn't need embeddings
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, importance])
+  @@index([userId, topic])
+  @@index([userId, isArchived])
+}
+
+model Event {
+  id             String    @id @default(uuid())
+  userId         String
+  title          String
+  eventDate      DateTime
+  followUpSent   Boolean   @default(false)
+  followUpSentAt DateTime?
+  importance     String    @default("medium")
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventDate])
+}
+
+model Message {
+  id                String    @id @default(uuid())
+  userId            String
+  sender            String
+  content           String
+  messageType       String    @default("text")
+  platform          String    @default("telegram")
+  triggerType       String?
+  telegramMessageId String?
+  responseDelayMs   Int?
+  sentAt            DateTime  @default(now())
+  readAt            DateTime?
+  isCrisisFlagged   Boolean   @default(false)
+  promptVersionId   String?
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt])
+  @@index([userId, sender])
+}
+
+model Boundary {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  dndStart              String   @default("23:00")
+  dndEnd                String   @default("08:00")
+  maxDailyAiMessages    Int      @default(3)
+  sensitiveTopics       String[]
+  followUpEnabled       Boolean  @default(true)
+  voiceNotesEnabled     Boolean  @default(true)
+  textMessagesEnabled   Boolean  @default(true)
+  imageMessagesEnabled  Boolean  @default(true)
+  pingCadence           String   @default("adaptive")
+  preferredCheckinTimes Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  tier                 String    @default("free")
+  status               String    @default("inactive")
+  billingInterval      String    @default("monthly")
+  startedAt            DateTime?
+  nextBillingAt        DateTime?
+  canceledAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RelationshipArc {
+  id                String   @id @default(uuid())
+  userId            String
+  weekNumber        Int
+  themes            String[]
+  emotionalToneAvg  String?
+  insideJokes       String[]
+  unresolvedThreads String[]
+  totalMessagesSent Int      @default(0)
+  totalAiInitiated  Int      @default(0)
+  responseRate      Float    @default(0)
+  generatedAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekNumber])
+}
+
+model InitiativeLog {
+  id                 String    @id @default(uuid())
+  userId             String
+  triggerType        String
+  status             String
+  reason             String?
+  messageId          String?
+  scheduledAt        DateTime
+  executedAt         DateTime?
+  emotionalContextId String?
+  templateId         String?
+  createdAt          DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scheduledAt])
+  @@index([userId, status])
+}
+
+model CrisisEvent {
+  id             String   @id @default(uuid())
+  userId         String
+  level          Int
+  messageContent String
+  actionTaken    String
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([level])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  userId     String?
+  eventName  String
+  properties Json?
+  createdAt  DateTime @default(now())
+
+  @@index([eventName])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model EmotionalPattern {
+  id           String   @id @default(uuid())
+  userId       String
+  pattern      String
+  confidence   Float    @default(0.5)
+  occurrences  Int      @default(1)
+  lastSeen     DateTime @default(now())
+  acknowledged Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pattern])
+  @@index([userId])
+}
+
+model ArchetypeAnswer {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  q3        String?
+  q5        String?
+  q7        String?
+  q8        String?
+  q12       String?
+  q17       String?
+  q18       String?
+  conscious String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeChunk {
+  id          String   @id @default(uuid())
+  category    String
+  subcategory String?
+  content     String
+  source      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  domain         String?
+  author         String?
+  language       String    @default("en")
+  version        Int       @default(1)
+  contentHash    String?
+  tokenCount     Int?
+  accessCount    Int       @default(0)
+  lastAccessedAt DateTime?
+  chunkIndex     Int?
+  totalChunks    Int?
+  metadata       Json?
+  // embedding      Unsupported("vector(384)")? — admin doesn't need embeddings
+  // tsv            Unsupported("tsvector")?     — admin doesn't need full-text search
+
+  @@unique([source, chunkIndex])
+  @@index([category])
+  @@index([domain])
+  @@index([contentHash])
+  @@index([domain, language])
+}
+
+model ConversationChunk {
+  id         String    @id @default(uuid())
+  userId     String
+  content    String
+  topic      String?
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  // embedding  Unsupported("vector(384)")? — admin doesn't need embeddings
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, topic])
+  @@index([userId, isArchived])
+}
+
+model UsageCounter {
+  id          String   @id @default(uuid())
+  userId      String
+  period      String
+  periodStart DateTime
+  llmMessages         Int      @default(0)
+  voiceNotes          Int      @default(0)
+  voiceTranscriptions Int      @default(0)
+  imageGens           Int      @default(0)
+  imageAnalysis       Int      @default(0)
+  aiInitiated         Int      @default(0)
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, periodStart])
+  @@index([userId])
+}
+
+model ScheduledPing {
+  id          String    @id @default(uuid())
+  userId      String
+  scheduledAt DateTime
+  reason      String
+  userHint    String?
+  status      String    @default("pending")
+  firedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([userId])
+}
+
+model UserPersona {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  persona     String
+  identity    Json?
+  values      Json?
+  socialGraph Json?
+  emotional   Json?
+  interests   Json?
+  version     Int      @default(1)
+  builtAt     DateTime @default(now())
+  builtFrom   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MemorySummary {
+  id           String   @id @default(uuid())
+  userId       String
+  period       String
+  periodStart  DateTime
+  periodEnd    DateTime
+  summary      String
+  themes       String[]
+  sentiment    String
+  keyEvents    Json?
+  keyMemories  String[]
+  memoriesUsed Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, periodStart])
+  @@index([userId, period])
+  @@index([userId, periodEnd])
+}
+
+model EmotionalContext {
+  id                 String    @id @default(uuid())
+  userId             String
+  category           String
+  severity           String
+  phase              String    @default("acute")
+  trigger            String
+  relatedPerson      String?
+  relatedMemoryIds   String[]
+  followUpSchedule   Int[]
+  nextFollowUpAt     DateTime?
+  followUpsSent      Int       @default(0)
+  lastFollowUpAt     DateTime?
+  consecutiveIgnores Int       @default(0)
+  phaseChangedAt     DateTime  @default(now())
+  resolvedAt         DateTime?
+  resolvedReason     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, phase])
+  @@index([userId, nextFollowUpAt])
+  @@index([phase, nextFollowUpAt])
+}
+
+model CheckinTemplate {
+  id          String  @id @default(uuid())
+  category    String
+  subcategory String?
+  phase       String?
+  content     String
+  tone        String  @default("warm")
+  isActive    Boolean @default(true)
+
+  @@index([category, isActive])
+  @@index([category, phase])
+}
