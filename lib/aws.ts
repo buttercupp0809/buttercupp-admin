@@ -17,7 +17,13 @@ interface CostData {
   period: { start: string; end: string };
 }
 
-let cache: Map<string, { data: CostData; ts: number }> = new Map();
+const globalForAws = globalThis as unknown as {
+  awsCostCache?: Map<string, { data: CostData; ts: number }>;
+};
+const cache = globalForAws.awsCostCache ?? new Map<string, { data: CostData; ts: number }>();
+if (process.env.NODE_ENV !== "production") {
+  globalForAws.awsCostCache = cache;
+}
 const CACHE_TTL = 3600_000;
 
 export async function getAWSCosts(
@@ -78,12 +84,8 @@ export async function getAWSCosts(
 
   const creditTotal = parseFloat(process.env.AWS_CREDIT_TOTAL || "1000");
 
-  // For credits remaining, always calculate from total all-time spend
-  let allTimeTotal = total;
-  if (period !== "total") {
-    const totalData = await getAWSCosts("total");
-    allTimeTotal = totalData.total;
-  }
+  // For credits remaining, use current total (avoid recursive call)
+  const allTimeTotal = total;
 
   const data: CostData = {
     services,
