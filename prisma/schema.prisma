@@ -63,6 +63,7 @@ model User {
   memorySummaries    MemorySummary[]
   emotionalContexts  EmotionalContext[]
   lastTemplatesUsed  Json?
+  feedback           Feedback[]
 }
 
 model Personality {
@@ -431,6 +432,45 @@ model EmotionalContext {
   @@index([userId, phase])
   @@index([userId, nextFollowUpAt])
   @@index([phase, nextFollowUpAt])
+}
+
+// Mirrors backend Feedback table (Pellow packages/database/prisma/schema.prisma).
+// Admin reads/triages; admin does NOT manage migrations for this table.
+model Feedback {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  priority String @default("important")
+  category String @default("general")
+
+  subject     String
+  body        String
+  attachments Json?
+
+  rating      Int?
+  ratingLabel String?
+
+  status String @default("new")
+  source String @default("dashboard")
+
+  founderNotified    Boolean   @default(false)
+  founderNotifiedAt  DateTime?
+  userAcknowledged   Boolean   @default(false)
+  userAcknowledgedAt DateTime?
+
+  resolvedAt     DateTime?
+  resolutionNote String?
+
+  isAnonymous Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([priority, status])
+  @@index([createdAt])
+  @@index([status, founderNotified])
 }
 
 model CheckinTemplate {

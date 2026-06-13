@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Users, Mail, Server, Trash2, LogOut, Menu } from "lucide-react";
+import {
+  BarChart3,
+  Users,
+  Mail,
+  Server,
+  Trash2,
+  LogOut,
+  Menu,
+  MessageSquareWarning,
+  Flame,
+  UserPlus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
@@ -12,6 +23,9 @@ import { useState } from "react";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/users", label: "Users", icon: Users },
+  { href: "/power-users", label: "Power Users", icon: Flame },
+  { href: "/feedback", label: "Feedback", icon: MessageSquareWarning },
+  { href: "/create-user", label: "Create User", icon: UserPlus },
   { href: "/email", label: "Email", icon: Mail },
   { href: "/aws", label: "AWS Costs", icon: Server },
   { href: "/delete", label: "Delete User", icon: Trash2 },
