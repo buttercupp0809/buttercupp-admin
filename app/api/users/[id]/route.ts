@@ -7,34 +7,42 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    include: {
-      personality: true,
-      archetypeAnswers: true,
-      memories: { take: 50, orderBy: { createdAt: "desc" } },
-      events: { take: 50, orderBy: { eventDate: "desc" } },
-      messages: { take: 100, orderBy: { sentAt: "desc" } },
-      boundary: true,
-      subscription: true,
-      arcs: { orderBy: { weekNumber: "desc" }, take: 10 },
-      initiativeLogs: { take: 50, orderBy: { createdAt: "desc" } },
-      crisisEvents: { orderBy: { createdAt: "desc" } },
-      emotionalPatterns: true,
-      conversationChunks: { take: 20, orderBy: { createdAt: "desc" } },
-      usageCounters: { orderBy: { periodStart: "desc" }, take: 12 },
-      scheduledPings: { orderBy: { scheduledAt: "desc" }, take: 20 },
-      persona: true,
-      memorySummaries: { orderBy: { periodEnd: "desc" }, take: 10 },
-      emotionalContexts: { orderBy: { createdAt: "desc" }, take: 20 },
-    },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        personality: true,
+        archetypeAnswers: true,
+        memories: { take: 50, orderBy: { createdAt: "desc" } },
+        events: { take: 50, orderBy: { eventDate: "desc" } },
+        messages: { take: 100, orderBy: { sentAt: "desc" } },
+        boundary: true,
+        subscription: true,
+        arcs: { orderBy: { weekNumber: "desc" }, take: 10 },
+        initiativeLogs: { take: 50, orderBy: { createdAt: "desc" } },
+        crisisEvents: { orderBy: { createdAt: "desc" } },
+        emotionalPatterns: true,
+        conversationChunks: { take: 20, orderBy: { createdAt: "desc" } },
+        usageCounters: { orderBy: { periodStart: "desc" }, take: 12 },
+        scheduledPings: { orderBy: { scheduledAt: "desc" }, take: 20 },
+        persona: true,
+        memorySummaries: { orderBy: { periodEnd: "desc" }, take: 10 },
+        emotionalContexts: { orderBy: { createdAt: "desc" }, take: 20 },
+      },
+    });
 
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(user);
+  } catch (err) {
+    console.error(`GET /api/users/${id} failed`, err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal error" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(user);
 }
 
 export async function DELETE(

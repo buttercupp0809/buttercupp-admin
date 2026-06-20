@@ -39,17 +39,31 @@ export default function UserDetailPage() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/users/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          toast.error(data.error);
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/users/${id}`);
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+        if (cancelled) return;
+        if (!res.ok || !data) {
+          toast.error(data?.error || `Failed to load user (${res.status})`);
           router.push("/users");
-        } else {
-          setUser(data);
+          return;
         }
-      })
-      .finally(() => setLoading(false));
+        setUser(data);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Failed to load user", err);
+        toast.error("Failed to load user");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id, router]);
 
   async function handleDelete() {
