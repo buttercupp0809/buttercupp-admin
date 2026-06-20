@@ -16,7 +16,12 @@ frontend:
           } >> .env.production
     build:
       commands:
-        - npm run build
+        # Clear stale webpack cache to prevent serving old bundled chunks.
+        - rm -rf .next/cache
+        # Use webpack instead of Turbopack — Turbopack auto-externalizes
+        # packages with native .node binaries (like Prisma), creating hashed
+        # module names that can't be resolved in Lambda at runtime.
+        - npx next build --webpack
   artifacts:
     baseDirectory: .next
     files:
