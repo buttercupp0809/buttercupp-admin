@@ -1,0 +1,20 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci --cache .npm --prefer-offline
+        - npx prisma generate
+        - |
+          env | grep -E '^(DATABASE_URL|ADMIN_EMAILS|ADMIN_PASSWORD_HASH_[A-Z]+|ADMIN_JWT_SECRET|RESEND_API_KEY|EMAIL_FROM|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_REGION|AWS_CREDIT_TOTAL|VESSPR_APP_URL|PELLOW_BASE_URL|INTERNAL_SECRET)=' >> .env.production
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*
+      - .npm/**/*
