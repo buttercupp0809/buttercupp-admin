@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArrowUpDown } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatCountry } from "@/lib/utils";
 
 type Period = "daily" | "weekly" | "monthly" | "quarterly";
 
@@ -24,6 +24,7 @@ interface UserRow {
   name: string;
   platform: string;
   subscriptionTier: string;
+  country: string | null;
   createdAt: string;
   score: number;
 }
@@ -127,6 +128,7 @@ export default function UsersPage() {
                 </button>
               </TableHead>
               <TableHead>Platform</TableHead>
+              <TableHead>Country</TableHead>
               <TableHead>Tier</TableHead>
               <TableHead>
                 <button onClick={() => toggleSort("score")} className="flex items-center gap-1 font-medium">
@@ -143,13 +145,13 @@ export default function UsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -167,6 +169,13 @@ export default function UsersPage() {
                   <TableCell>{user.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{user.platform}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {user.country ? (
+                      <span title={user.country}>{formatCountry(user.country)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={user.subscriptionTier === "free" ? "secondary" : "default"}>

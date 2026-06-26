@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         name: true,
         platform: true,
         subscriptionTier: true,
+        country: true,
         createdAt: true,
       },
     }),

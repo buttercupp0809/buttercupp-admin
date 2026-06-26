@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ArrowLeft, Mail, KeyRound, Trash2 } from "lucide-react";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatCountry } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UserDetail = any;
@@ -216,7 +216,7 @@ function ProfileTab({ user }: { user: UserDetail }) {
         <CardHeader><CardTitle className="text-sm">User Info</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
           <Row label="Nickname" value={user.nickname} />
-          <Row label="Country" value={user.country} />
+          <Row label="Country" value={user.country ? `${formatCountry(user.country)} (${user.country})` : null} />
           <Row label="Living Situation" value={user.livingSituation} />
           <Row label="Onboarding Step" value={user.onboardingStep} />
           <Row label="Onboarding Complete" value={user.onboardingComplete ? "Yes" : "No"} />

@@ -17,8 +17,10 @@ import { ActiveUsersChart } from "@/components/charts/active-users-chart";
 import { MessagesChart } from "@/components/charts/messages-chart";
 import { TierPieChart } from "@/components/charts/tier-pie-chart";
 import { PlatformBarChart } from "@/components/charts/platform-bar-chart";
+import { CountryBarChart } from "@/components/charts/country-bar-chart";
 import { UsageChart } from "@/components/charts/usage-chart";
 import { Users, MessageSquare, Crown, Activity } from "lucide-react";
+import { formatCountry } from "@/lib/utils";
 
 type DateRange = "7" | "30" | "90" | "all";
 
@@ -41,6 +43,8 @@ export default function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [platforms, setPlatforms] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [countries, setCountries] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [usage, setUsage] = useState<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [events, setEvents] = useState<any[]>([]);
@@ -48,13 +52,14 @@ export default function DashboardPage() {
   const days = range === "all" ? "365" : range;
 
   const fetchAll = useCallback(async () => {
-    const [s, g, a, m, t, p, u, e] = await Promise.all([
+    const [s, g, a, m, t, p, c, u, e] = await Promise.all([
       fetch("/api/analytics/summary").then((r) => r.json()),
       fetch(`/api/analytics/growth?days=${days}`).then((r) => r.json()),
       fetch("/api/analytics/active").then((r) => r.json()),
       fetch(`/api/analytics/messages?days=${days}`).then((r) => r.json()),
       fetch("/api/analytics/tiers").then((r) => r.json()),
       fetch("/api/analytics/platforms").then((r) => r.json()),
+      fetch("/api/analytics/countries").then((r) => r.json()),
       fetch(`/api/analytics/usage?days=${days}`).then((r) => r.json()),
       fetch(`/api/analytics/events?days=${days}`).then((r) => r.json()),
     ]);
@@ -64,6 +69,7 @@ export default function DashboardPage() {
     setMessages(m);
     setTiers(t);
     setPlatforms(p);
+    setCountries(c);
     setUsage(u);
     setEvents(e);
   }, [days]);
@@ -171,6 +177,20 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-sm">
+              Country Distribution
+              <span className="text-muted-foreground font-normal ml-2">
+                ({countries.length} {countries.length === 1 ? "country" : "countries"})
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CountryBarChart data={countries} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-sm">Usage Counters</CardTitle>
           </CardHeader>
           <CardContent>
@@ -178,6 +198,56 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Country breakdown table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Users by Country</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Country</TableHead>
+                <TableHead className="text-right">Users</TableHead>
+                <TableHead className="text-right">% of Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(() => {
+                const total = countries.reduce((sum, c) => sum + c.count, 0);
+                if (countries.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                        No country data
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+                return countries.map((c) => (
+                  <TableRow key={c.country}>
+                    <TableCell>
+                      <Badge variant="outline">{formatCountry(c.country)}</Badge>
+                      {c.country && c.country !== "Unknown" && c.country !== formatCountry(c.country) && (
+                        <span className="text-muted-foreground text-xs ml-2">
+                          {c.country}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {c.count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {total > 0 ? ((c.count / total) * 100).toFixed(1) : "0.0"}%
+                    </TableCell>
+                  </TableRow>
+                ));
+              })()}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Top Events Table */}
       <Card>
