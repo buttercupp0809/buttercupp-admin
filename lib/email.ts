@@ -22,7 +22,16 @@ export async function sendEmail(
   // shared sandbox domain and only delivers to the account owner, so it must never
   // be the production default. Override with EMAIL_FROM once a Vesspr-branded
   // domain is verified in Resend.
-  const from = process.env.EMAIL_FROM || "Vesspr <contact@karooli.ai>";
+  //
+  // Always present "Vesspr" as the display name so inboxes show the brand, not a
+  // raw address. If EMAIL_FROM is a bare address (e.g. "dev@karooli.ai") we wrap
+  // it; if it already carries a display name ("Name <addr>") we use it verbatim.
+  const fromEnv = process.env.EMAIL_FROM?.trim();
+  const from = fromEnv
+    ? fromEnv.includes("<")
+      ? fromEnv
+      : `Vesspr <${fromEnv}>`
+    : "Vesspr <contact@karooli.ai>";
   const result = await resend.emails.send({ from, to, subject, html });
 
   if (result.error) {
