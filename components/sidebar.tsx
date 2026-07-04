@@ -13,6 +13,9 @@ import {
   MessageSquareWarning,
   Flame,
   UserPlus,
+  TrendingUp,
+  Send,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -24,6 +27,9 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/users", label: "Users", icon: Users },
   { href: "/power-users", label: "Power Users", icon: Flame },
+  { href: "/funnel", label: "Funnel", icon: TrendingUp },
+  { href: "/meta-capi-test", label: "CAPI Test", icon: Send },
+  { href: "/meta-capi-backfill", label: "CAPI Backfill", icon: RefreshCw },
   { href: "/feedback", label: "Feedback", icon: MessageSquareWarning },
   { href: "/create-user", label: "Create User", icon: UserPlus },
   { href: "/email", label: "Email", icon: Mail },
