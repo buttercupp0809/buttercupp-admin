@@ -57,10 +57,10 @@ export async function callBackend<T = unknown>(
     }
     if (!res.ok) {
       const errData = data as { error?: string } | null;
-      throw new Error(
-        errData?.error ??
-          `backend ${opts.path} failed with ${res.status}`,
-      );
+      // Always include the upstream status + path so a backend 401 is never
+      // confused with the admin app's own middleware "Unauthorized".
+      const detail = errData?.error ? `: ${errData.error}` : "";
+      throw new Error(`backend ${opts.path} returned ${res.status}${detail}`);
     }
     return data as T;
   } finally {
