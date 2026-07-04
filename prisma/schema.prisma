@@ -39,6 +39,18 @@ model User {
   ageVerified        Boolean   @default(false)
   gender             String? // "male", "female", "non-binary", "prefer-not-to-say"
   preferredGender    String? // "male", "female", "non-binary", "open-to-all"
+
+  fbp             String?
+  fbc             String?
+  lastClientIp    String?
+  lastUserAgent   String?
+  marketingLeadId String?        @unique
+  marketingLead   MarketingLead? @relation("MarketingLeadUser")
+  variantId       String?
+  utmSource       String?
+  utmCampaign     String?
+  utmContent      String?
+
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -484,4 +496,38 @@ model CheckinTemplate {
 
   @@index([category, isActive])
   @@index([category, phase])
+}
+
+// Mirrors backend MarketingLead table (Pellow packages/database/prisma/schema.prisma).
+// DDL is owned by the Vesspr repo migration. Admin only mirrors the schema for its
+// generated client. Do NOT run prisma migrate from this repo.
+model MarketingLead {
+  id              String    @id @default(cuid())
+  source          String    @default("tally")
+  variantId       String?
+  externalRefId   String?   @unique
+  email           String?
+  name            String?
+  phone           String?
+  country         String?
+  age             Int?
+  utmSource       String?
+  utmCampaign     String?
+  utmContent      String?
+  utmMedium       String?
+  utmTerm         String?
+  fbp             String?
+  fbc             String?
+  clientIp        String?
+  clientUserAgent String?
+  payload         Json?
+  userId          String?   @unique
+  createdAt       DateTime  @default(now())
+  consumedAt      DateTime?
+
+  user User? @relation("MarketingLeadUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([variantId])
+  @@index([utmCampaign])
+  @@index([createdAt])
 }

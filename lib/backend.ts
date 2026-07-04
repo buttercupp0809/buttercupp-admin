@@ -1,0 +1,64 @@
+/**
+ * Thin wrapper around the Vesspr backend's internal HTTP API.
+ *
+ * The backend gates every internal endpoint with `X-Internal-Secret`. This
+ * helper reads BACKEND_URL + INTERNAL_API_SECRET from env and throws with a
+ * clear message if either is missing.
+ */
+
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+export interface BackendCallOptions {
+  path: string;
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: Record<string, unknown>;
+  timeoutMs?: number;
+  /** Verified admin email from the request session, forwarded to backend audit log. */
+  adminEmail?: string | null;
+}
+
+export async function callBackend<T = unknown>(
+  opts: BackendCallOptions,
+): Promise<T> {
+  const url = process.env.BACKEND_URL;
+  const secret = process.env.INTERNAL_API_SECRET;
+  if (!url) throw new Error("BACKEND_URL is not set");
+  if (!secret) throw new Error("INTERNAL_API_SECRET is not set");
+
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  );
+
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Internal-Secret": secret,
+    };
+    if (opts.adminEmail) headers["X-Admin-Email"] = opts.adminEmail;
+    const res = await fetch(`${url.replace(/\/$/, "")}${opts.path}`, {
+      method: opts.method ?? "POST",
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    let data: unknown;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { raw: text };
+    }
+    if (!res.ok) {
+      const errData = data as { error?: string } | null;
+      throw new Error(
+        errData?.error ??
+          `backend ${opts.path} failed with ${res.status}`,
+      );
+    }
+    return data as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}

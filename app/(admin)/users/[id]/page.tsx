@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, KeyRound, Trash2 } from "lucide-react";
+import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake } from "lucide-react";
 import { formatDate, formatDateTime, formatCountry } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,6 +37,18 @@ export default function UserDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftConfirmEmail, setShiftConfirmEmail] = useState("");
+  const [shiftSendEmail, setShiftSendEmail] = useState(true);
+  const [shifting, setShifting] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
+  const [msgMode, setMsgMode] = useState<"raw" | "llm">("llm");
+  const [msgText, setMsgText] = useState("");
+  const [msgPrompt, setMsgPrompt] = useState("");
+  const [sendingMsg, setSendingMsg] = useState(false);
+  const [birthdayOpen, setBirthdayOpen] = useState(false);
+  const [birthdayForce, setBirthdayForce] = useState(false);
+  const [sendingBirthday, setSendingBirthday] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -83,6 +95,108 @@ export default function UserDetailPage() {
     setDeleting(false);
   }
 
+  async function handleSendMessage() {
+    if (msgMode === "raw" && !msgText.trim()) {
+      toast.error("Text is empty");
+      return;
+    }
+    if (msgMode === "llm" && !msgPrompt.trim()) {
+      toast.error("Prompt is empty");
+      return;
+    }
+    setSendingMsg(true);
+    try {
+      const res = await fetch(`/api/users/${id}/send-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: msgMode,
+          text: msgMode === "raw" ? msgText : undefined,
+          prompt: msgMode === "llm" ? msgPrompt : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Send failed");
+        return;
+      }
+      toast.success(`Sent via ${data.platform}: ${data.text.slice(0, 60)}${data.text.length > 60 ? "…" : ""}`);
+      setMsgOpen(false);
+      setMsgText("");
+      setMsgPrompt("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Send failed");
+    } finally {
+      setSendingMsg(false);
+    }
+  }
+
+  async function handleSendBirthday() {
+    setSendingBirthday(true);
+    try {
+      const res = await fetch(`/api/users/${id}/send-birthday`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: birthdayForce }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Birthday send failed");
+        return;
+      }
+      if (!data.sent) {
+        toast.info(`Skipped: ${data.reason}`);
+      } else {
+        toast.success(
+          `Birthday sent via ${data.result?.platform}: ${data.result?.text.slice(0, 60)}${data.result?.text.length > 60 ? "…" : ""}`
+        );
+      }
+      setBirthdayOpen(false);
+      setBirthdayForce(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Birthday send failed");
+    } finally {
+      setSendingBirthday(false);
+    }
+  }
+
+  async function handleShiftToWhatsapp() {
+    setShifting(true);
+    try {
+      const res = await fetch(`/api/users/${id}/shift-to-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmEmail: shiftConfirmEmail,
+          sendEmail: shiftSendEmail,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Shift failed");
+        return;
+      }
+      if (data.alreadyOnWhatsapp) {
+        toast.info("Already on WhatsApp, no changes");
+      } else if (data.emailSent) {
+        toast.success("Shifted to WhatsApp, email sent");
+      } else if (data.emailError) {
+        toast.warning(`Shifted, but email failed: ${data.emailError}`);
+      } else {
+        toast.success("Shifted to WhatsApp (no email sent)");
+      }
+      setShiftOpen(false);
+      setShiftConfirmEmail("");
+      setUser((prev: UserDetail) =>
+        prev ? { ...prev, ...data.user } : prev
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Shift failed");
+    } finally {
+      setShifting(false);
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-12 text-muted-foreground">Loading user…</div>;
   }
@@ -120,6 +234,37 @@ export default function UserDetailPage() {
             </Button>
             <Button size="sm" variant="outline">
               <KeyRound className="h-4 w-4 mr-1" /> Password Reset
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setMsgOpen(true)}>
+              <Send className="h-4 w-4 mr-1" /> Send Message
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setBirthdayOpen(true)}
+              disabled={!user.dateOfBirth}
+              title={
+                user.dateOfBirth
+                  ? "Send a personalized birthday message crafted from their memories"
+                  : "No date of birth on file"
+              }
+            >
+              <Cake className="h-4 w-4 mr-1" /> Send Birthday
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShiftOpen(true)}
+              disabled={user.platform === "whatsapp"}
+              title={
+                user.platform === "whatsapp"
+                  ? user.whatsappPhoneId
+                    ? "Already on WhatsApp"
+                    : "Shifted to WhatsApp, awaiting re-pair"
+                  : "Move this user from Telegram to WhatsApp"
+              }
+            >
+              <MessageCircle className="h-4 w-4 mr-1" /> Shift to WhatsApp
             </Button>
             <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-1" /> Delete User
@@ -201,6 +346,171 @@ export default function UserDetailPage() {
               onClick={handleDelete}
             >
               {deleting ? "Deleting…" : "Delete Permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Message Dialog */}
+      <Dialog open={msgOpen} onOpenChange={setMsgOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send message to {user.name || user.email}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="flex gap-4 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="msgMode"
+                  value="llm"
+                  checked={msgMode === "llm"}
+                  onChange={() => setMsgMode("llm")}
+                />
+                LLM prompt (crafted in-persona)
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="msgMode"
+                  value="raw"
+                  checked={msgMode === "raw"}
+                  onChange={() => setMsgMode("raw")}
+                />
+                Plain text (sent verbatim)
+              </label>
+            </div>
+            {msgMode === "llm" ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Describe the message. Vesspr will write it in her voice, referencing this
+                  user&apos;s memories, personality, and arc.
+                </p>
+                <textarea
+                  className="w-full min-h-[120px] border border-input rounded-md bg-background px-3 py-2 text-sm"
+                  placeholder='e.g. "wish them luck on their move to Berlin next week"'
+                  value={msgPrompt}
+                  onChange={(e) => setMsgPrompt(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Text sent to the user verbatim. Skips the LLM entirely.
+                </p>
+                <textarea
+                  className="w-full min-h-[120px] border border-input rounded-md bg-background px-3 py-2 text-sm"
+                  placeholder="Type the exact message"
+                  value={msgText}
+                  onChange={(e) => setMsgText(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMsgOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                sendingMsg ||
+                (msgMode === "raw" ? !msgText.trim() : !msgPrompt.trim())
+              }
+              onClick={handleSendMessage}
+            >
+              {sendingMsg ? "Sending…" : "Send Message"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Birthday Dialog */}
+      <Dialog open={birthdayOpen} onOpenChange={setBirthdayOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send birthday message</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground space-y-2 mt-2">
+            <p>
+              A personalized birthday message will be crafted by the LLM, referencing this
+              user&apos;s memories, personality, and shared history.
+            </p>
+            <p>
+              DOB on file:{" "}
+              <strong>
+                {user.dateOfBirth ? formatDate(user.dateOfBirth) : "not set"}
+              </strong>
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm mt-3">
+            <input
+              type="checkbox"
+              checked={birthdayForce}
+              onChange={(e) => setBirthdayForce(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Force send even if one was already sent this year
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBirthdayOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={sendingBirthday} onClick={handleSendBirthday}>
+              {sendingBirthday ? "Sending…" : "Send Birthday"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift to WhatsApp Dialog */}
+      <Dialog open={shiftOpen} onOpenChange={setShiftOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Shift to WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground space-y-3">
+            <p>
+              This will move <strong>{user.name || user.email}</strong> from Telegram to
+              WhatsApp. Their Telegram binding will be cleared. Their memories,
+              personality, and history stay.
+            </p>
+            <p>
+              The user must re-pair on WhatsApp by sending the pre-filled{" "}
+              <code className="bg-muted px-1 rounded">hi &lt;userId&gt;</code> message
+              to the Vesspr number.
+            </p>
+          </div>
+          <div className="space-y-3 mt-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                Type <code className="bg-muted px-1 rounded">{user.email}</code> to
+                confirm:
+              </p>
+              <Input
+                value={shiftConfirmEmail}
+                onChange={(e) => setShiftConfirmEmail(e.target.value)}
+                placeholder={user.email}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={shiftSendEmail}
+                onChange={(e) => setShiftSendEmail(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Email the user a wa.me link
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShiftOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={shiftConfirmEmail !== user.email || shifting}
+              onClick={handleShiftToWhatsapp}
+            >
+              {shifting ? "Shifting…" : "Shift to WhatsApp"}
             </Button>
           </DialogFooter>
         </DialogContent>
