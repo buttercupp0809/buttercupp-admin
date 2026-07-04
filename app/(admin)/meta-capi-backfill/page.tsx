@@ -27,6 +27,7 @@ interface BackfillResult {
   rangeStart: string;
   rangeEnd: string;
   dryRun: boolean;
+  truncated?: boolean;
   counters: Counters;
   errors: { eventId: string; status: number; body: string }[];
   samplePayloads?: unknown[];
@@ -112,7 +113,7 @@ export default function MetaCapiBackfillPage() {
               id="limit"
               type="number"
               min={1}
-              max={1000}
+              max={500}
               value={limit}
               onChange={(e) => setLimit(e.target.value)}
             />
@@ -140,6 +141,12 @@ export default function MetaCapiBackfillPage() {
 
       {result && (
         <div className="space-y-4">
+          {result.truncated && (
+            <p className="text-xs text-amber-600 border border-amber-500/50 rounded-lg p-3">
+              Hit the per-run cap. There may be more purchases after this window.
+              Re-run with a later &ldquo;since&rdquo; to continue.
+            </p>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <CounterCard title="Attempted" value={result.counters.attempted} />
             <CounterCard title="Succeeded" value={result.counters.succeeded} />

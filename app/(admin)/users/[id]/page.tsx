@@ -255,10 +255,12 @@ export default function UserDetailPage() {
               size="sm"
               variant="outline"
               onClick={() => setShiftOpen(true)}
-              disabled={user.platform === "whatsapp" && !!user.whatsappPhoneId}
+              disabled={user.platform === "whatsapp"}
               title={
-                user.platform === "whatsapp" && user.whatsappPhoneId
-                  ? "Already on WhatsApp"
+                user.platform === "whatsapp"
+                  ? user.whatsappPhoneId
+                    ? "Already on WhatsApp"
+                    : "Shifted to WhatsApp, awaiting re-pair"
                   : "Move this user from Telegram to WhatsApp"
               }
             >

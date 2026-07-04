@@ -15,13 +15,17 @@ const STEPS = [
 type StepName = (typeof STEPS)[number];
 type Totals = Record<StepName, number>;
 
+// Funnel metric is the raw event count, NOT distinct users. Top-of-funnel events
+// (ad_lead_submit) fire from the Tally lead webhook before an account exists, so
+// their userId is null and COUNT(DISTINCT "userId") would drop them entirely.
+// Event counts keep the lead step intact at the cost of counting repeat fires;
+// the UI labels the column "Count" to reflect this.
 interface RawRow {
   event_name: string;
   variant_id: string | null;
   utm_source: string | null;
   utm_campaign: string | null;
   event_date: Date;
-  user_count: bigint | number;
   event_count: bigint | number;
 }
 
@@ -88,7 +92,6 @@ export async function GET(req: NextRequest) {
       (properties->>'utm_source')   AS utm_source,
       (properties->>'utm_campaign') AS utm_campaign,
       DATE("createdAt")             AS event_date,
-      COUNT(DISTINCT "userId")      AS user_count,
       COUNT(*)                      AS event_count
     FROM "AnalyticsEvent"
     WHERE ${whereClause}

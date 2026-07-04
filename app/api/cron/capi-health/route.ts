@@ -34,11 +34,13 @@ async function getSentryFailureCount(): Promise<number | null> {
 }
 
 export async function GET(req: NextRequest) {
-  const isVercelCron = req.headers.get("x-vercel-cron");
+  // Auth solely via CRON_SECRET. The `x-vercel-cron` header is NOT stripped from
+  // inbound external requests, so its mere presence is spoofable and must not be
+  // trusted. Configure Vercel Cron to send `Authorization: Bearer ${CRON_SECRET}`.
   const authHeader = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
 
-  if (!isVercelCron && authHeader !== `Bearer ${secret}`) {
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

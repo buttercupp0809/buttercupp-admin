@@ -13,6 +13,8 @@ export interface BackendCallOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: Record<string, unknown>;
   timeoutMs?: number;
+  /** Verified admin email from the request session, forwarded to backend audit log. */
+  adminEmail?: string | null;
 }
 
 export async function callBackend<T = unknown>(
@@ -30,12 +32,14 @@ export async function callBackend<T = unknown>(
   );
 
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Internal-Secret": secret,
+    };
+    if (opts.adminEmail) headers["X-Admin-Email"] = opts.adminEmail;
     const res = await fetch(`${url.replace(/\/$/, "")}${opts.path}`, {
       method: opts.method ?? "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Secret": secret,
-      },
+      headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: controller.signal,
     });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -106,12 +106,16 @@ export function FunnelView({ initial }: { initial: FunnelResponse | null }) {
     }
   }, []);
 
+  // Skip the fetch only on the very first render, where `initial` (the 14d SSR
+  // payload) is already in state. Every subsequent rangeDays change refetches,
+  // including navigating back to 14d, so we never show a stale range's data.
+  const firstRender = useRef(true);
   useEffect(() => {
-    if (rangeDays === 14 && initial) return;
-    // Fetching fresh funnel data on a range change is the intended effect; the
-    // loading/error setState inside load() is not the render-time state sync
-    // the rule targets.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (firstRender.current) {
+      firstRender.current = false;
+      if (initial) return;
+    }
+    // Fetching fresh funnel data on a range change is the intended effect.
     load(rangeDays);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeDays]);

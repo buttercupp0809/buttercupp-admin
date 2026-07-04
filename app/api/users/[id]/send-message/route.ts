@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callBackend } from "@/lib/backend";
 import { prisma } from "@/lib/prisma";
+import { getAdminEmail } from "@/lib/auth";
 
 export async function POST(
   req: NextRequest,
@@ -60,6 +61,7 @@ export async function POST(
   }
 
   try {
+    const adminEmail = await getAdminEmail();
     const backendResult = await callBackend<{
       success: boolean;
       text: string;
@@ -67,6 +69,7 @@ export async function POST(
     }>({
       path: "/api/admin/send-message",
       method: "POST",
+      adminEmail,
       body: {
         userId: user.id,
         mode: body.mode,
