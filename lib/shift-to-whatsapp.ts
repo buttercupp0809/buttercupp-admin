@@ -119,5 +119,5 @@ export async function sendShiftEmail(
     ctaUrl: waLink,
     footerNote: "Received this by mistake? Ignore this email and nothing changes.",
   });
-  await sendEmail(to, "continue with your friend on whatsapp", html);
+  await sendEmail(to, "Continue with Vesspr on Whatsapp", html);
 }
