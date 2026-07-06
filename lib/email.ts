@@ -68,11 +68,10 @@ const BODY_FONT =
   "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 function appBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VESSPR_APP_URL ||
-    "https://app.vesspr.ai"
-  );
+  // Email assets (hero image, social icons) are served ONLY by the app host,
+  // never the marketing apex (vesspr.ai). Do NOT fall back to VESSPR_APP_URL
+  // here or every image 404s. Mirrors Pellow frontend/lib/email.ts.
+  return process.env.NEXT_PUBLIC_APP_URL || "https://app.vesspr.ai";
 }
 
 // Public brand/social handles used in the footer social row.
