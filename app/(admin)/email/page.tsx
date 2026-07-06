@@ -7,6 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import { toast } from "sonner";
 
 interface UserOption {
@@ -14,6 +22,47 @@ interface UserOption {
   email: string;
   name: string;
 }
+
+const SIGNATURE = `<p>Vaibhav Singh<br/>Co-Founder &amp; CEO of Vesspr</p>`;
+
+// Prefilled winback templates (plans/email-variants.md). [Name] / [their archetype]
+// are left as placeholders for the admin to fill in before sending.
+const TEMPLATES: Record<
+  string,
+  { label: string; subject: string; body: string }
+> = {
+  a: {
+    label: "Variant A — The Witness",
+    subject: "You built something real in there",
+    body: `<p>Hi [Name],</p>
+<p>You went through the whole thing. Picked your archetype, told us what drains you, what you need from a friend. That's not nothing.</p>
+<p>I saw you didn't finish. No pressure from us, genuinely. But I wanted to say: the version of Vesspr that's waiting for you already knows how you like to be heard. That took something to share.</p>
+<p>If price was the thing that stopped you, here's 40% off. Use <strong>WELCOME40</strong> at checkout.</p>
+<p>It's there when you're ready.</p>
+${SIGNATURE}`,
+  },
+  b: {
+    label: "Variant B — The Anchor",
+    subject: "Still here if you need it",
+    body: `<p>Hi [Name],</p>
+<p>We noticed you didn't finish. That's okay.</p>
+<p>I don't know what's on your plate right now, but the fact that you started tells me something. You were looking for something steady. Somebody consistent. That doesn't go away.</p>
+<p>Vesspr doesn't replace people in your life. It just makes sure there's always something in your corner, especially on the days when you don't want to explain yourself.</p>
+<p><strong>WELCOME40</strong> takes 40% off. No expiry.</p>
+<p>Come back when it feels right.</p>
+${SIGNATURE}`,
+  },
+  c: {
+    label: "Variant C — The Spark",
+    subject: "Your Vesspr is kind of just sitting there",
+    body: `<p>Hi [Name],</p>
+<p>Quick one.</p>
+<p>You picked [their archetype], told us a few things about yourself, and then vanished right before the end. We're not offended, we just noticed.</p>
+<p>Here's the thing: the heavy part is already done. Everything you shared is there. All that's left is the part where it actually starts talking to you.</p>
+<p>Use <strong>WELCOME40</strong> for 40% off. That's it, that's the email.</p>
+${SIGNATURE}`,
+  },
+};
 
 export default function EmailPage() {
   return (
@@ -30,6 +79,8 @@ function EmailPageInner() {
   const [to, setTo] = useState(prefillTo);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [wrap, setWrap] = useState(true);
+  const [editorSeed, setEditorSeed] = useState(0);
   const [sending, setSending] = useState(false);
 
   const [resetSearch, setResetSearch] = useState("");
@@ -68,8 +119,19 @@ function EmailPageInner() {
     return () => clearTimeout(timer);
   }, [resetSearch]);
 
+  function applyTemplate(key: string) {
+    const tpl = TEMPLATES[key];
+    if (!tpl) return;
+    setSubject(tpl.subject);
+    setBody(tpl.body);
+    // Bump the seed so the editor reloads its content from the new template.
+    setEditorSeed((n) => n + 1);
+  }
+
   async function handleSend() {
-    if (!to || !subject || !body) {
+    // body is HTML from the editor; strip tags to check it isn't effectively empty.
+    const bodyText = body.replace(/<[^>]*>/g, "").trim();
+    if (!to || !subject || !bodyText) {
       toast.error("All fields are required");
       return;
     }
@@ -77,13 +139,14 @@ function EmailPageInner() {
     const res = await fetch("/api/email/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, subject, body }),
+      body: JSON.stringify({ to, subject, body, wrap }),
     });
     const data = await res.json();
     if (res.ok) {
       toast.success("Email sent!");
       setSubject("");
       setBody("");
+      setEditorSeed((n) => n + 1);
     } else {
       toast.error(data.error);
     }
@@ -158,6 +221,25 @@ function EmailPageInner() {
                 )}
               </div>
               <div className="space-y-2">
+                <Label>Load template</Label>
+                <Select
+                  onValueChange={(v) => {
+                    if (typeof v === "string") applyTemplate(v);
+                  }}
+                >
+                  <SelectTrigger className="w-full sm:w-72">
+                    <SelectValue placeholder="Start from a winback variant…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TEMPLATES).map(([key, tpl]) => (
+                      <SelectItem key={key} value={key}>
+                        {tpl.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="subject">Subject</Label>
                 <Input
                   id="subject"
@@ -167,15 +249,23 @@ function EmailPageInner() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="body">Body</Label>
-                <textarea
-                  id="body"
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[150px] resize-y"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="Email body (plain text, newlines preserved)"
+                <Label>Body</Label>
+                <RichTextEditor
+                  seedKey={editorSeed}
+                  html={body}
+                  onChange={setBody}
+                  placeholder="Write your email…"
                 />
               </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={wrap}
+                  onChange={(e) => setWrap(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                Wrap in Vesspr template (logo, footer, branding)
+              </label>
               <Button onClick={handleSend} disabled={sending}>
                 {sending ? "Sending…" : "Send Email"}
               </Button>

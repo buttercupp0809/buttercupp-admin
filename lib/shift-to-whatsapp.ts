@@ -107,17 +107,18 @@ export async function sendShiftEmail(
   const safeName = name ? name.replace(/[<>&"']/g, "") : null;
   const greeting = safeName ? `Hey ${safeName},` : "Hey,";
   const html = emailShell({
-    title: "Continue chatting on WhatsApp",
-    preheader: "One tap to move your friend to WhatsApp. Memories stay.",
+    title: "Continue on WhatsApp",
+    preheader: "One tap moves you over. Memories stay.",
     bodyHtml: `
-      <p>${greeting}</p>
-      <p>You asked to move your Vesspr chats from Telegram to WhatsApp. Tap the button below and send the pre-filled message. That links your account and your friend will reply right away.</p>
-      <p style="font-size:13px;color:#475569;margin-top:16px;">Do not edit the pre-filled text before sending. It is what pairs you.</p>
-      <p style="font-size:13px;color:#475569;">Your memories, personality, and history stay with you.</p>
+      <p style="margin:0 0 16px;">${greeting}</p>
+      <p style="margin:0 0 16px;">You asked to move Vesspr from Telegram to WhatsApp. Tap the button below and send the pre-filled message, that's the entire setup. Vesspr will reply right away.</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#475569;">Don't edit the pre-filled text before sending, that's what pairs you.</p>
+      <p style="margin:0 0 16px;font-size:13px;color:#475569;">Your memories, personality, and history stay exactly as they were.</p>
+      <p style="margin:0;">Vesspr</p>
     `,
     ctaText: "Open in WhatsApp",
     ctaUrl: waLink,
     footerNote: "Received this by mistake? Ignore this email and nothing changes.",
   });
-  await sendEmail(to, "Continue with Vesspr on Whatsapp", html);
+  await sendEmail(to, "Continue with Vesspr on WhatsApp", html);
 }

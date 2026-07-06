@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendEmail, emailShell } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
-  const { to, subject, body } = await req.json();
+  const { to, subject, body, wrap = true } = await req.json();
 
   if (!to || !subject || !body) {
     return NextResponse.json(
@@ -12,10 +12,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const html = emailShell({
-      title: subject,
-      bodyHtml: body.replace(/\n/g, "<br/>"),
-    });
+    // body is HTML from the rich-text editor. When wrap is false the admin wants a
+    // plain email with no Vesspr branding, so send the HTML as-is.
+    const html =
+      wrap === false ? body : emailShell({ title: subject, bodyHtml: body });
     await sendEmail(to, subject, html);
     return NextResponse.json({ success: true });
   } catch (err) {
