@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   }
 
   const secret = process.env.PAYWALL_PREVIEW_SECRET;
-  const origin = process.env.NEXT_PUBLIC_VESSPR_ORIGIN;
+  const origin = process.env.NEXT_PUBLIC_APP_URL;
   if (!secret) {
     return NextResponse.json(
       { error: "PAYWALL_PREVIEW_SECRET is not configured" },
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   }
   if (!origin) {
     return NextResponse.json(
-      { error: "NEXT_PUBLIC_VESSPR_ORIGIN is not configured" },
+      { error: "NEXT_PUBLIC_APP_URL is not configured" },
       { status: 503 },
     );
   }
