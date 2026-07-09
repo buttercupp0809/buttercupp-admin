@@ -54,6 +54,10 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // Paywall experimentation attribution (master-prd-21)
+  paywallVariantKey String?
+  paywallRuleKey    String?
+
   modeWeights              Json?
   enrichmentQuestionsAsked Json?
 
@@ -197,6 +201,11 @@ model Subscription {
   canceledAt           DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+
+  // Paywall experimentation attribution (master-prd-21)
+  paywallVariantKey  String?
+  paywallRuleKey     String?
+  paywallPriceSetKey String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -530,4 +539,52 @@ model MarketingLead {
   @@index([variantId])
   @@index([utmCampaign])
   @@index([createdAt])
+}
+
+// Mirrors backend PaywallPriceSet/PaywallVariant/PaywallRule tables (Pellow
+// packages/database/prisma/schema.prisma, master-prd-21). DDL is owned by the
+// Pellow repo migration (Phase 0). Admin only mirrors the schema for its
+// generated client and manages rows via the /paywall UI. Do NOT run prisma
+// migrate from this repo for these models.
+model PaywallPriceSet {
+  id            String    @id @default(uuid())
+  key           String    @unique
+  label         String
+  active        Boolean   @default(true)
+  dodoProducts  Json // { "T0": { "monthly": "prod_...", "annual": "prod_..." }, ... }
+  priceSnapshot Json? // { "T0": { "monthlyCents": 1900, "annualYearlyCents": 14400, "currency": "USD" } }
+  lastValidated DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model PaywallVariant {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  status      String   @default("draft") // draft | active | archived
+  priceSetKey String?
+  content     Json
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+model PaywallRule {
+  id                 String   @id @default(uuid())
+  key                String   @unique
+  name               String
+  status             String   @default("off") // off | live
+  priority           Int      @default(100)
+  matchCampaigns     String[]
+  matchVariantParams String[]
+  arms               Json // [{ "variantKey": "bf_25off", "weight": 100 }]
+  countryIn          String[]
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status, priority])
 }

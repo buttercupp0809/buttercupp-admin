@@ -69,8 +69,11 @@ const BODY_FONT =
 
 function appBaseUrl(): string {
   // Email assets (hero image, social icons) are served ONLY by the app host,
-  // never the marketing apex (vesspr.ai). Do NOT fall back to VESSPR_APP_URL
-  // here or every image 404s. Mirrors Pellow frontend/lib/email.ts.
+  // never the marketing apex (vesspr.ai) or www.vesspr.ai. NEXT_PUBLIC_APP_URL
+  // is the single canonical env var for the product URL across every repo
+  // (Pellow frontend/backend, vesspr-admin, vesspr-website); never introduce
+  // an alternate name (e.g. VESSPR_APP_URL) for the same concept.
+  // Mirrors Pellow frontend/lib/email.ts.
   return process.env.NEXT_PUBLIC_APP_URL || "https://app.vesspr.ai";
 }
 
