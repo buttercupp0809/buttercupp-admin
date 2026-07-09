@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -31,15 +32,51 @@ import {
 import { toast } from "sonner";
 import { AlertTriangle, HelpCircle, Plus, Power, Trash2, X } from "lucide-react";
 
-// Lightweight tooltip: wraps a label with an info icon carrying a native
-// browser title tooltip. No extra dependency needed.
+// Portal tooltip: rendered into document.body to escape overflow-clipped
+// containers and dialog stacking contexts. The icon span and tooltip are
+// separate DOM subtrees so mounting the tooltip never triggers mouseleave.
+const TOOLTIP_W = 224; // w-56 = 14rem = 224px
 function Tip({ children, tip }: { children: React.ReactNode; tip: string }) {
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  const margin = 8;
+  const vw = typeof window !== "undefined" ? window.innerWidth : 800;
+  const tooltipLeft = rect
+    ? Math.max(margin, Math.min(rect.left + rect.width / 2 - TOOLTIP_W / 2, vw - TOOLTIP_W - margin))
+    : 0;
+  const caretLeft = rect ? rect.left + rect.width / 2 - tooltipLeft : 0;
+
+  const tooltip =
+    rect && typeof document !== "undefined"
+      ? createPortal(
+          <span
+            role="tooltip"
+            className="pointer-events-none fixed z-[9999] w-56 rounded-md bg-foreground px-2.5 py-1.5 text-[11px] leading-snug text-background shadow-md"
+            style={{ left: tooltipLeft, top: rect.top - 6, transform: "translateY(-100%)" }}
+          >
+            {tip}
+            <span
+              className="absolute top-full border-4 border-transparent border-t-foreground"
+              style={{ left: caretLeft - 4 }}
+            />
+          </span>,
+          document.body
+        )
+      : null;
+
   return (
     <span className="flex items-center gap-1">
       {children}
-      <span title={tip} aria-label={tip} className="cursor-help inline-flex">
+      <span
+        ref={iconRef}
+        className="inline-flex cursor-help"
+        onMouseEnter={() => setRect(iconRef.current?.getBoundingClientRect() ?? null)}
+        onMouseLeave={() => setRect(null)}
+      >
         <HelpCircle className="h-3 w-3 text-muted-foreground shrink-0" />
       </span>
+      {tooltip}
     </span>
   );
 }
