@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { AlertTriangle, Plus, Power, X } from "lucide-react";
+import { AlertTriangle, Plus, Power, Trash2, X } from "lucide-react";
 
 export interface PaywallRule {
   id: string;
@@ -176,6 +176,8 @@ export function RulesView({
   const [saving, setSaving] = useState(false);
   const [killOpen, setKillOpen] = useState(false);
   const [killing, setKilling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<PaywallRule | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [options, setOptions] = useState<{
     campaigns: string[];
     variantParams: string[];
@@ -295,6 +297,28 @@ export function RulesView({
     }
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/paywall/rules?id=${encodeURIComponent(deleteTarget.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete rule");
+        return;
+      }
+      toast.success(`Rule "${deleteTarget.key}" deleted`);
+      setDeleteTarget(null);
+      await refresh();
+    } catch {
+      toast.error("Delete request failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const liveCount = rules.filter((r) => r.status === "live").length;
 
   return (
@@ -335,7 +359,7 @@ export function RulesView({
                 </TableCell>
               </TableRow>
             ) : (
-              rules.map((r) => (
+              rules.map((r, index) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-xs">{r.key}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
@@ -362,9 +386,21 @@ export function RulesView({
                     {r.arms[0]?.variantKey || "—"}
                   </TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => openEdit(r)}>
-                      Edit
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(r)}>
+                        Edit
+                      </Button>
+                      {index > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(r)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -529,6 +565,26 @@ export function RulesView({
             </Button>
             <Button variant="destructive" onClick={handleKillSwitch} disabled={killing}>
               {killing ? "Turning off…" : "Yes, turn everything off"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete rule?</DialogTitle>
+            <DialogDescription>
+              This permanently removes &quot;{deleteTarget?.key}&quot;. If it&apos;s live, matched
+              traffic falls back to control immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

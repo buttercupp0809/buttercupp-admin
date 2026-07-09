@@ -151,3 +151,44 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json({ priceSet, results: validation.results });
 }
+
+// The first-created price set (the seeded "default" catalog entry) is the
+// fallback every variant with priceSetKey=null resolves against — it's never
+// deletable, mirroring the "except the default option" rule in the UI.
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const existing = await prisma.paywallPriceSet.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Price set not found" }, { status: 404 });
+  }
+
+  const first = await prisma.paywallPriceSet.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (first?.id === id) {
+    return NextResponse.json(
+      { error: "The default price set can't be deleted" },
+      { status: 400 },
+    );
+  }
+
+  const referencingCount = await prisma.paywallVariant.count({
+    where: { priceSetKey: existing.key },
+  });
+  if (referencingCount > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete: ${referencingCount} variant(s) still reference this price set`,
+      },
+      { status: 409 },
+    );
+  }
+
+  await prisma.paywallPriceSet.delete({ where: { id } });
+  return NextResponse.json({ success: true });
+}

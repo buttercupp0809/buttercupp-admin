@@ -198,3 +198,46 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json({ variant });
 }
+
+// The first-created variant (the seeded "control" baseline) is the resolver's
+// hardcoded fallback and the results page's significance baseline — never
+// deletable, mirroring the "except the default option" rule in the UI.
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const existing = await prisma.paywallVariant.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Variant not found" }, { status: 404 });
+  }
+
+  const first = await prisma.paywallVariant.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (first?.id === id) {
+    return NextResponse.json(
+      { error: "The control variant can't be deleted" },
+      { status: 400 },
+    );
+  }
+
+  const rules = await prisma.paywallRule.findMany({ select: { key: true, arms: true } });
+  const referencing = rules.filter((r) =>
+    Array.isArray(r.arms) &&
+    (r.arms as { variantKey?: string }[]).some((arm) => arm?.variantKey === existing.key),
+  );
+  if (referencing.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete: pinned by rule(s) ${referencing.map((r) => r.key).join(", ")}`,
+      },
+      { status: 409 },
+    );
+  }
+
+  await prisma.paywallVariant.delete({ where: { id } });
+  return NextResponse.json({ success: true });
+}

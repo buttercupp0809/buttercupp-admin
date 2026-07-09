@@ -187,3 +187,32 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json({ rule, warning });
 }
+
+// The top-of-list rule (lowest priority, i.e. first tie-break winner) is kept
+// non-deletable from here, mirroring the "except the default option" rule
+// applied to the other two paywall tables — reprioritize before removing it.
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const existing = await prisma.paywallRule.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Rule not found" }, { status: 404 });
+  }
+
+  const first = await prisma.paywallRule.findFirst({
+    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+  if (first?.id === id) {
+    return NextResponse.json(
+      { error: "The top-priority rule can't be deleted from here" },
+      { status: 400 },
+    );
+  }
+
+  await prisma.paywallRule.delete({ where: { id } });
+  return NextResponse.json({ success: true });
+}

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Loader2, Plus } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Plus, Trash2 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 
 const PPP_TIERS = ["T0", "T1", "T2", "T3", "T4"] as const;
@@ -94,6 +94,8 @@ export function PriceSetsView({
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dodoProductOptions, setDodoProductOptions] = useState<DodoProductOption[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<PaywallPriceSet | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Existing Dodo products for product-id autocomplete. Fetched lazily the
   // first time the editor opens. Fail-open: the id inputs stay plain text.
@@ -220,6 +222,28 @@ export function PriceSetsView({
     }
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/paywall/price-sets?id=${encodeURIComponent(deleteTarget.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete price set");
+        return;
+      }
+      toast.success(`Price set "${deleteTarget.key}" deleted`);
+      setDeleteTarget(null);
+      await refresh();
+    } catch {
+      toast.error("Delete request failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -249,7 +273,7 @@ export function PriceSetsView({
                 </TableCell>
               </TableRow>
             ) : (
-              priceSets.map((ps) => (
+              priceSets.map((ps, index) => (
                 <TableRow key={ps.id}>
                   <TableCell className="font-mono text-xs">{ps.key}</TableCell>
                   <TableCell className="font-medium">{ps.label}</TableCell>
@@ -280,9 +304,21 @@ export function PriceSetsView({
                     {ps.lastValidated ? formatDateTime(ps.lastValidated) : "—"}
                   </TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => openEdit(ps)}>
-                      Edit
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(ps)}>
+                        Edit
+                      </Button>
+                      {index > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(ps)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -421,6 +457,26 @@ export function PriceSetsView({
             </Button>
             <Button onClick={handleSave} disabled={saving || !overallValid}>
               {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete price set?</DialogTitle>
+            <DialogDescription>
+              This permanently removes &quot;{deleteTarget?.key}&quot;. Any variant still pointing
+              at this price set must be re-pointed first.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
