@@ -16,7 +16,7 @@ export default function PaywallLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="space-y-6">
-      <nav className="flex gap-1 border-b border-border -mb-2 pb-0">
+      <nav className="flex gap-1 border-b border-border pb-0 mb-2">
         {SUB_NAV.map((item) => {
           const active = pathname.startsWith(item.href);
           return (

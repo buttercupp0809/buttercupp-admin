@@ -29,7 +29,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { AlertTriangle, Plus, Power, Trash2, X } from "lucide-react";
+import { AlertTriangle, HelpCircle, Plus, Power, Trash2, X } from "lucide-react";
+
+// Lightweight tooltip: wraps a label with an info icon carrying a native
+// browser title tooltip. No extra dependency needed.
+function Tip({ children, tip }: { children: React.ReactNode; tip: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      {children}
+      <span title={tip} aria-label={tip} className="cursor-help inline-flex">
+        <HelpCircle className="h-3 w-3 text-muted-foreground shrink-0" />
+      </span>
+    </span>
+  );
+}
 
 export interface PaywallRule {
   id: string;
@@ -422,7 +435,7 @@ export function RulesView({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Key</Label>
+                <Label><Tip tip="Unique identifier for this rule. Immutable after creation. Conventionally matches the utm_campaign value so the key is self-documenting.">Key</Tip></Label>
                 <Input
                   value={form.key}
                   disabled={!!editing}
@@ -435,7 +448,7 @@ export function RulesView({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Name</Label>
+                <Label><Tip tip="Human-readable label shown in the rules table. Not used for matching — only for your reference.">Name</Tip></Label>
                 <Input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -446,7 +459,7 @@ export function RulesView({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Priority</Label>
+                <Label><Tip tip="When two live rules both match the same traffic, the one with the lower priority number wins. Use 10, 20, 30 spacing to leave room for future rules.">Priority</Tip></Label>
                 <Input
                   type="number"
                   value={form.priority}
@@ -455,7 +468,7 @@ export function RulesView({
                 <p className="text-[0.65rem] text-muted-foreground">Lower number wins ties.</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Status</Label>
+                <Label><Tip tip="'live' means this rule actively matches traffic. 'off' is the kill switch — set to off to instantly revert matched users to the control paywall without deleting the rule.">Status</Tip></Label>
                 <Select
                   value={form.status}
                   onValueChange={(v) => setForm((f) => ({ ...f, status: v as "off" | "live" }))}
@@ -472,7 +485,7 @@ export function RulesView({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Variant</Label>
+              <Label><Tip tip="The paywall variant this rule sends matched users to. Must be an active variant. All matched traffic goes here (100% direct pin in v1).">Variant</Tip></Label>
               <Select
                 value={form.variantKey || undefined}
                 onValueChange={(v) => setForm((f) => ({ ...f, variantKey: v ?? "" }))}
@@ -500,7 +513,7 @@ export function RulesView({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Match campaigns (utm_campaign)</Label>
+              <Label><Tip tip="The utm_campaign values in ad URLs that trigger this rule. e.g. if your Meta ad destination URL has ?utm_campaign=black_friday, add 'black_friday' here. Multiple values = any of them matches.">Match campaigns (utm_campaign)</Tip></Label>
               <ChipsInput
                 values={form.matchCampaigns}
                 onChange={(v) => setForm((f) => ({ ...f, matchCampaigns: v }))}
@@ -510,7 +523,7 @@ export function RulesView({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Match variant params (?paywall=/?variant=)</Label>
+              <Label><Tip tip="Direct URL param triggers. If someone opens the payment page with ?paywall=bf25 or ?variant=bf25, and 'bf25' is listed here, this rule fires regardless of utm_campaign. Useful for sharing a specific paywall via a link.">Match variant params (?paywall=/?variant=)</Tip></Label>
               <ChipsInput
                 values={form.matchVariantParams}
                 onChange={(v) => setForm((f) => ({ ...f, matchVariantParams: v }))}
@@ -520,7 +533,7 @@ export function RulesView({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Country scoping (optional, ISO-2)</Label>
+              <Label><Tip tip="Restrict this rule to users from specific countries (ISO-2 codes, e.g. US, GB, IN). Leave empty to match all countries. Useful when a campaign only targets a specific market and you don't want it affecting users elsewhere.">Country scoping (optional, ISO-2)</Tip></Label>
               <ChipsInput
                 values={form.countryIn}
                 onChange={(v) => setForm((f) => ({ ...f, countryIn: v }))}

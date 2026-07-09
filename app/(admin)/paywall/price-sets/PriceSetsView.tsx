@@ -413,6 +413,9 @@ export function PriceSetsView({
                       tier={tier}
                       slot="monthly"
                       environment={dodoEnvironment}
+                      existingProductId={form.dodoProducts[tier]?.monthly || undefined}
+                      existingName={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.monthly)?.name}
+                      existingPriceCents={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.monthly)?.priceCents ?? undefined}
                       onCreated={(id) => setSlot(tier, "monthly", id)}
                     />
                   </div>
@@ -428,6 +431,9 @@ export function PriceSetsView({
                       tier={tier}
                       slot="annual"
                       environment={dodoEnvironment}
+                      existingProductId={form.dodoProducts[tier]?.annual || undefined}
+                      existingName={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.annual)?.name}
+                      existingPriceCents={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.annual)?.priceCents ?? undefined}
                       onCreated={(id) => setSlot(tier, "annual", id)}
                     />
                   </div>
@@ -530,78 +536,119 @@ function SlotInput({
   );
 }
 
-// Create-only mini-form: mints a brand-new Dodo product and drops the
-// resulting id into the parent slot. Never updates/deletes existing
-// products, and only fires on explicit click — never automatically.
+// Create + Edit mini-form for a single Dodo product slot.
+// When `existingProductId` is set: shows "Edit product" trigger and calls the
+// update endpoint (PUT /api/paywall/dodo-products/update).
+// When empty: shows "+ Create new product" trigger and calls the create endpoint.
+// All 3 fields (name, price, trial days) are editable in both modes.
 function CreateProductMiniForm({
   tier,
   slot,
   environment,
+  existingProductId,
+  existingName,
+  existingPriceCents,
   onCreated,
 }: {
   tier: Tier;
   slot: Slot;
   environment: DodoEnvironment;
+  existingProductId?: string;
+  existingName?: string;
+  existingPriceCents?: number;
   onCreated: (productId: string) => void;
 }) {
+  const isEdit = Boolean(existingProductId);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [dollars, setDollars] = useState("");
-  const [trialDays, setTrialDays] = useState("5");
-  const [creating, setCreating] = useState(false);
+  const [trialDays, setTrialDays] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  async function handleCreate() {
+  function handleOpen() {
+    setName(existingName ?? "");
+    setDollars(existingPriceCents ? (existingPriceCents / 100).toFixed(2) : "");
+    setTrialDays("");
+    setOpen(true);
+  }
+
+  async function handleSubmit() {
     const amount = parseFloat(dollars);
     if (!amount || amount <= 0) {
       toast.error("Enter a valid price in dollars");
       return;
     }
     const trial = parseInt(trialDays, 10);
-
-    setCreating(true);
+    setBusy(true);
     try {
-      const res = await fetch("/api/paywall/dodo-products/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: `${tier} ${slot}`,
-          // Explicit product name shown in Dodo; falls back server-side to
-          // the label + interval when left blank.
-          name: name.trim() || undefined,
-          interval: slot,
-          priceCents: Math.round(amount * 100),
-          trialPeriodDays: Number.isNaN(trial) ? 0 : trial,
-        }),
-      });
+      let res: Response;
+      if (isEdit && existingProductId) {
+        res = await fetch("/api/paywall/dodo-products/update", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: existingProductId,
+            name: name.trim() || undefined,
+            interval: slot,
+            priceCents: Math.round(amount * 100),
+            ...(trialDays !== "" ? { trialPeriodDays: Number.isNaN(trial) ? 0 : trial } : {}),
+          }),
+        });
+      } else {
+        res = await fetch("/api/paywall/dodo-products/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            label: `${tier} ${slot}`,
+            name: name.trim() || undefined,
+            interval: slot,
+            priceCents: Math.round(amount * 100),
+            trialPeriodDays: Number.isNaN(trial) ? 0 : trial,
+          }),
+        });
+      }
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Failed to create Dodo product");
+        toast.error(data.error || (isEdit ? "Failed to update product" : "Failed to create product"));
         return;
       }
+      const env = data.environment === "live_mode" ? "live" : "test";
       toast.success(
-        `Created ${data.productId} (${data.environment === "live_mode" ? "live" : "test"}) — re-validate to snapshot it`,
+        isEdit
+          ? `Updated ${existingProductId} (${env}) — re-validate to refresh snapshot`
+          : `Created ${data.productId} (${env}) — re-validate to snapshot it`,
       );
-      onCreated(data.productId);
+      onCreated(isEdit ? existingProductId! : data.productId);
       setOpen(false);
-      setName("");
-      setDollars("");
-      setTrialDays("5");
     } catch {
-      toast.error("Create request failed");
+      toast.error(isEdit ? "Update request failed" : "Create request failed");
     } finally {
-      setCreating(false);
+      setBusy(false);
     }
   }
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-[0.65rem] text-primary hover:underline"
-      >
-        + Create new product
-      </button>
+      <div className="flex gap-3">
+        {!isEdit && (
+          <button
+            type="button"
+            onClick={handleOpen}
+            className="text-[0.65rem] text-primary hover:underline"
+          >
+            + Create new product
+          </button>
+        )}
+        {isEdit && (
+          <button
+            type="button"
+            onClick={handleOpen}
+            className="text-[0.65rem] text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Edit product
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -615,9 +662,12 @@ function CreateProductMiniForm({
           {environment === "live_mode" ? "LIVE" : "TEST"}
         </Badge>
         <span className="text-[0.65rem] text-muted-foreground">
-          {slot === "annual" ? "Yearly total, $" : "Monthly price, $"}
+          {isEdit ? "Edit product" : (slot === "annual" ? "Yearly total, $" : "Monthly price, $")}
         </span>
       </div>
+      {isEdit && (
+        <p className="text-[0.6rem] font-mono text-muted-foreground truncate">{existingProductId}</p>
+      )}
       <Input
         type="text"
         placeholder={`Product name (e.g. ${tier} ${slot})`}
@@ -634,22 +684,24 @@ function CreateProductMiniForm({
           value={dollars}
           onChange={(e) => setDollars(e.target.value)}
           className="h-7 text-xs"
+          title={slot === "annual" ? "Yearly total in dollars (e.g. 144.00 = $144/yr)" : "Monthly price in dollars"}
         />
         <Input
           type="number"
           min="0"
           step="1"
-          title="Trial days"
+          title={isEdit ? "Free trial days — leave blank to keep existing" : "Free trial days (0 = no trial)"}
+          placeholder={isEdit ? "keep" : "5"}
           value={trialDays}
           onChange={(e) => setTrialDays(e.target.value)}
           className="h-7 w-16 text-xs"
         />
       </div>
       <div className="flex gap-1.5">
-        <Button size="xs" onClick={handleCreate} disabled={creating}>
-          {creating ? "Creating…" : "Create"}
+        <Button size="xs" onClick={handleSubmit} disabled={busy}>
+          {busy ? (isEdit ? "Updating…" : "Creating…") : (isEdit ? "Update" : "Create")}
         </Button>
-        <Button size="xs" variant="outline" onClick={() => setOpen(false)} disabled={creating}>
+        <Button size="xs" variant="outline" onClick={() => setOpen(false)} disabled={busy}>
           Cancel
         </Button>
       </div>
