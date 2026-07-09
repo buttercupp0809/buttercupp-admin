@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Send,
   RefreshCw,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/power-users", label: "Power Users", icon: Flame },
   { href: "/funnel", label: "Funnel", icon: TrendingUp },
+  { href: "/paywall/price-sets", label: "Paywall", icon: DollarSign, activeMatch: "/paywall" },
   { href: "/meta-capi-test", label: "CAPI Test", icon: Send },
   { href: "/meta-capi-backfill", label: "CAPI Backfill", icon: RefreshCw },
   { href: "/feedback", label: "Feedback", icon: MessageSquareWarning },
@@ -57,7 +59,7 @@ function NavContent({ pathname, onLogout }: { pathname: string; onLogout: () => 
       <nav className="flex-1 px-3 py-3 space-y-0.5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
+          const active = pathname.startsWith(item.activeMatch ?? item.href);
           return (
             <Link
               key={item.href}
