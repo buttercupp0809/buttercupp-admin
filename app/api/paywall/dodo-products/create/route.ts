@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDodoClient, getDodoEnvironment } from "@/lib/dodo";
-import { burstProductListCache } from "@/app/api/paywall/dodo-products/list/route";
+import { burstProductListCache } from "@/lib/dodo-product-list-cache";
 
 // Mirrors the timeout pattern in lib/backend.ts: don't let a slow Dodo
 // endpoint stall the request indefinitely.

@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { getDodoClient, getDodoEnvironment } from "@/lib/dodo";
+import {
+  getProductListCache,
+  setProductListCache,
+  PRODUCT_LIST_TTL_MS,
+  type DodoProductOption,
+} from "@/lib/dodo-product-list-cache";
 
 // Lists existing Dodo products so the price-set editor can autocomplete a
 // product id instead of pasting it. Read-only. The list response carries
@@ -11,28 +17,12 @@ export const dynamic = "force-dynamic";
 const TIMEOUT_MS = 10_000;
 const MAX_PRODUCTS = 200;
 
-interface DodoProductOption {
-  id: string;
-  name: string;
-  priceCents: number | null;
-  currency: string | null;
-  recurring: boolean;
-}
-
-let cache: { at: number; data: { products: DodoProductOption[]; environment: string } } | null = null;
-const TTL_MS = 60_000;
-
-// Called by the create route after minting a new product so the next GET
-// immediately re-fetches from Dodo instead of serving stale suggestions.
-export function burstProductListCache(): void {
-  cache = null;
-}
-
 export async function GET() {
   const environment = getDodoEnvironment();
 
-  if (cache && Date.now() - cache.at < TTL_MS) {
-    return NextResponse.json(cache.data);
+  const cached = getProductListCache();
+  if (cached && Date.now() - cached.at < PRODUCT_LIST_TTL_MS) {
+    return NextResponse.json(cached.data);
   }
 
   const client = getDodoClient();
@@ -58,7 +48,7 @@ export async function GET() {
     }
 
     const data = { products, environment };
-    cache = { at: Date.now(), data };
+    setProductListCache({ at: Date.now(), data });
     return NextResponse.json(data);
   } catch (err) {
     console.error("[dodo-products/list] failed", err);
