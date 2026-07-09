@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDodoClient, getDodoEnvironment } from "@/lib/dodo";
+import { burstProductListCache } from "@/app/api/paywall/dodo-products/list/route";
 
 // Mirrors the timeout pattern in lib/backend.ts: don't let a slow Dodo
 // endpoint stall the request indefinitely.
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
       { signal: controller.signal },
     );
 
+    burstProductListCache();
     return NextResponse.json({
       productId: product.product_id,
       priceCents,

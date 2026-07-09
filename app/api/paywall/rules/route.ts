@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isValidCountryCode } from "@/lib/countries";
 
 // v1 direct-pin UI only: a rule always has exactly one arm at weight 100.
 // The schema/resolver support multi-arm weighted rollout (Pellow's pickArm),
@@ -65,6 +66,11 @@ async function parseBody(body: RuleBody | null): Promise<ParsedRule | { error: s
   const matchCampaigns = cleanList(body.matchCampaigns);
   const matchVariantParams = cleanList(body.matchVariantParams);
   const countryIn = cleanList(body.countryIn).map((c) => c.toUpperCase());
+  for (const code of countryIn) {
+    if (!isValidCountryCode(code)) {
+      return { error: `Invalid country code: "${code}"` };
+    }
+  }
 
   const priority = Number.isInteger(body.priority) ? (body.priority as number) : NaN;
   if (!Number.isInteger(priority)) {

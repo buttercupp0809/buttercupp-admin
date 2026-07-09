@@ -22,6 +22,12 @@ interface DodoProductOption {
 let cache: { at: number; data: { products: DodoProductOption[]; environment: string } } | null = null;
 const TTL_MS = 60_000;
 
+// Called by the create route after minting a new product so the next GET
+// immediately re-fetches from Dodo instead of serving stale suggestions.
+export function burstProductListCache(): void {
+  cache = null;
+}
+
 export async function GET() {
   const environment = getDodoEnvironment();
 

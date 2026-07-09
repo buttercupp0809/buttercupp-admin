@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 // exp is an absolute expiry timestamp in ms, minted with a 5 min TTL. Must match
 // Pellow's frontend/app/api/paywall/resolve/route.ts verifyPreviewSignature exactly.
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
+const DB_TIMEOUT_MS = 5_000;
 
 export async function GET(req: NextRequest) {
   const key = (req.nextUrl.searchParams.get("key") || "").trim();
@@ -28,10 +29,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const variant = await prisma.paywallVariant.findUnique({
-    where: { key },
-    select: { key: true },
-  });
+  const timeout = new Promise<null>((_, reject) =>
+    setTimeout(() => reject(new Error("DB timeout")), DB_TIMEOUT_MS),
+  );
+  let variant: { key: string } | null;
+  try {
+    variant = await Promise.race([
+      prisma.paywallVariant.findUnique({ where: { key }, select: { key: true } }),
+      timeout,
+    ]);
+  } catch {
+    return NextResponse.json({ error: "Lookup timed out, try again" }, { status: 504 });
+  }
   if (!variant) {
     return NextResponse.json({ error: "Variant not found" }, { status: 404 });
   }
