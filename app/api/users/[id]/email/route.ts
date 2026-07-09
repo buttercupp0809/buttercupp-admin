@@ -33,9 +33,6 @@ export async function POST(
         .setIssuedAt()
         .sign(secret);
 
-      // app.vesspr.ai is the product/app subdomain; the bare apex and
-      // www.vesspr.ai are the marketing site, never a valid destination for
-      // a logged-in-user route like /reset-password.
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.vesspr.ai";
       const resetUrl = `${appUrl}/reset-password?token=${token}`;
 

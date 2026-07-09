@@ -152,7 +152,7 @@ Internal admin portal for the Vesspr team (3 admins) to monitor user engagement,
 - One-click "Send Password Reset"
 - Generates a reset token (JWT with `purpose: "password-reset"`, 1hr expiry)
 - Sends via `sendPasswordResetEmail()` pattern from main app
-- Reset URL points to `VESSPR_APP_URL/reset-password?token=xxx`
+- Reset URL points to `NEXT_PUBLIC_APP_URL/reset-password?token=xxx`
 
 ---
 
@@ -252,7 +252,7 @@ AWS_REGION=us-east-1
 AWS_CREDIT_TOTAL=1000
 
 # Main app URL (for password reset links)
-VESSPR_APP_URL=https://vesspr.ai
+NEXT_PUBLIC_APP_URL=https://app.vesspr.ai
 ```
 
 ---

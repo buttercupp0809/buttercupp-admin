@@ -146,7 +146,7 @@ AWS_REGION=us-east-1
 AWS_CREDIT_TOTAL=1000
 
 # Main Vesspr app URL (for password reset links)
-VESSPR_APP_URL=https://vesspr.ai
+NEXT_PUBLIC_APP_URL=https://app.vesspr.ai
 ```
 
 ### 2.6 Verify
@@ -553,7 +553,7 @@ const { type, subject, body } = await req.json();
 
 if (type === "forgot-password") {
   // Look up user, generate reset token (JWT with purpose: "password-reset", 1hr expiry)
-  // Build reset URL: `${VESSPR_APP_URL}/reset-password?token=xxx`
+  // Build reset URL: `${NEXT_PUBLIC_APP_URL}/reset-password?token=xxx`
   // Send using emailShell template
 }
 
