@@ -235,17 +235,25 @@ export default function UserDetailPage() {
             <Button size="sm" variant="outline">
               <KeyRound className="h-4 w-4 mr-1" /> Password Reset
             </Button>
-            {process.env.NEXT_PUBLIC_POSTHOG_KEY && (
+            {process.env.NEXT_PUBLIC_POSTHOG_KEY && process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() =>
+                onClick={() => {
+                  const projectId = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID;
+                  const filters = encodeURIComponent(
+                    JSON.stringify({
+                      properties: [
+                        { key: "email", value: [user.email], operator: "exact", type: "person" },
+                      ],
+                    }),
+                  );
                   window.open(
-                    `https://us.posthog.com/project/${process.env.NEXT_PUBLIC_POSTHOG_KEY}/persons/${encodeURIComponent(user.id)}#activeTab=sessionRecordings`,
+                    `https://us.posthog.com/project/${projectId}/replay/home?filters=${filters}`,
                     "_blank",
                     "noopener,noreferrer",
-                  )
-                }
+                  );
+                }}
               >
                 <Video className="h-4 w-4 mr-1" /> PostHog Recordings
               </Button>
