@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -97,10 +97,9 @@ export function PriceSetsView({
   const [deleteTarget, setDeleteTarget] = useState<PaywallPriceSet | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Existing Dodo products for product-id autocomplete. Fetched lazily the
-  // first time the editor opens. Fail-open: the id inputs stay plain text.
-  useEffect(() => {
-    if (!open || dodoProductOptions.length > 0) return;
+  // Dodo product options: re-fetched every time the dialog opens so "Edit
+  // product" always shows the current name/price, not a stale cached value.
+  const fetchDodoProducts = useCallback(() => {
     let cancelled = false;
     fetch("/api/paywall/dodo-products/list", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
@@ -108,10 +107,13 @@ export function PriceSetsView({
         if (!cancelled && d?.products) setDodoProductOptions(d.products);
       })
       .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open, dodoProductOptions.length]);
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    return fetchDodoProducts();
+  }, [open, fetchDodoProducts]);
 
   const currentJson = useMemo(() => JSON.stringify(form.dodoProducts), [form.dodoProducts]);
   const isValidatedForCurrentInput = results !== null && validatedJson === currentJson;
@@ -273,7 +275,7 @@ export function PriceSetsView({
                 </TableCell>
               </TableRow>
             ) : (
-              priceSets.map((ps, index) => (
+              priceSets.map((ps) => (
                 <TableRow key={ps.id}>
                   <TableCell className="font-mono text-xs">{ps.key}</TableCell>
                   <TableCell className="font-medium">{ps.label}</TableCell>
@@ -308,16 +310,14 @@ export function PriceSetsView({
                       <Button variant="outline" size="sm" onClick={() => openEdit(ps)}>
                         Edit
                       </Button>
-                      {index > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(ps)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(ps)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -417,6 +417,7 @@ export function PriceSetsView({
                       existingName={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.monthly)?.name}
                       existingPriceCents={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.monthly)?.priceCents ?? undefined}
                       onCreated={(id) => setSlot(tier, "monthly", id)}
+                      onProductsRefresh={fetchDodoProducts}
                     />
                   </div>
                   <div className="space-y-1">
@@ -435,6 +436,7 @@ export function PriceSetsView({
                       existingName={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.annual)?.name}
                       existingPriceCents={dodoProductOptions.find(p => p.id === form.dodoProducts[tier]?.annual)?.priceCents ?? undefined}
                       onCreated={(id) => setSlot(tier, "annual", id)}
+                      onProductsRefresh={fetchDodoProducts}
                     />
                   </div>
                 </div>
@@ -549,6 +551,7 @@ function CreateProductMiniForm({
   existingName,
   existingPriceCents,
   onCreated,
+  onProductsRefresh,
 }: {
   tier: Tier;
   slot: Slot;
@@ -557,6 +560,7 @@ function CreateProductMiniForm({
   existingName?: string;
   existingPriceCents?: number;
   onCreated: (productId: string) => void;
+  onProductsRefresh?: () => void;
 }) {
   const isEdit = Boolean(existingProductId);
   const [open, setOpen] = useState(false);
@@ -619,6 +623,7 @@ function CreateProductMiniForm({
           : `Created ${data.productId} (${env}) — re-validate to snapshot it`,
       );
       onCreated(isEdit ? existingProductId! : data.productId);
+      onProductsRefresh?.();
       setOpen(false);
     } catch {
       toast.error(isEdit ? "Update request failed" : "Create request failed");

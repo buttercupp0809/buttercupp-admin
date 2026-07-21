@@ -91,7 +91,7 @@ export function VariantsView({ initial }: { initial: PaywallVariant[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              variants.map((v, index) => (
+              variants.map((v) => (
                 <TableRow key={v.id}>
                   <TableCell className="font-mono text-xs">{v.key}</TableCell>
                   <TableCell className="font-medium">{v.name}</TableCell>
@@ -120,16 +120,14 @@ export function VariantsView({ initial }: { initial: PaywallVariant[] }) {
                       >
                         Edit
                       </Link>
-                      {index > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(v)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(v)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>

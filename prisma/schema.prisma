@@ -31,7 +31,12 @@ model User {
   pauseUntil         DateTime?
   onboardingStep     Int       @default(0)
   onboardingComplete Boolean   @default(false)
+  onboardingPath     String    @default("complete")
+  enrichmentComplete Boolean   @default(false)
   trialEndsAt        DateTime?
+  trialStatus        String    @default("active")
+  trialReminderSentAt      DateTime?
+  trialExpiredNoticeSentAt DateTime?
   memoryPaused       Boolean   @default(false)
   arrivalResponse    String?
   age                Int?
@@ -193,19 +198,36 @@ model Subscription {
   userId               String    @unique
   stripeCustomerId     String?
   stripeSubscriptionId String?
-  tier                 String    @default("free")
-  status               String    @default("inactive")
-  billingInterval      String    @default("monthly")
-  startedAt            DateTime?
-  nextBillingAt        DateTime?
-  canceledAt           DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+
+  // Provider-agnostic fields (Dodo / Stripe)
+  provider               String?
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  providerPriceId        String?
+
+  tier            String @default("free")
+  status          String @default("inactive")
+  billingInterval String @default("monthly")
+
+  grandfatheredPriceCents Int?
+
+  // PPP pricing snapshot — captured at checkout
+  purchaseCountry    String?
+  purchasePriceCents Int?
+  purchaseCurrency   String?
+  pppTier            String?
+  pppMultiplier      Float?
 
   // Paywall experimentation attribution (master-prd-21)
   paywallVariantKey  String?
   paywallRuleKey     String?
   paywallPriceSetKey String?
+
+  startedAt     DateTime?
+  nextBillingAt DateTime?
+  canceledAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

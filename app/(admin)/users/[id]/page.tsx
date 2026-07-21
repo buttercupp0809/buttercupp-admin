@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake } from "lucide-react";
+import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake, Video } from "lucide-react";
 import { formatDate, formatDateTime, formatCountry } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -235,6 +235,21 @@ export default function UserDetailPage() {
             <Button size="sm" variant="outline">
               <KeyRound className="h-4 w-4 mr-1" /> Password Reset
             </Button>
+            {process.env.NEXT_PUBLIC_POSTHOG_KEY && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  window.open(
+                    `https://us.posthog.com/project/${process.env.NEXT_PUBLIC_POSTHOG_KEY}/persons/${encodeURIComponent(user.id)}#activeTab=sessionRecordings`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  )
+                }
+              >
+                <Video className="h-4 w-4 mr-1" /> PostHog Recordings
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setMsgOpen(true)}>
               <Send className="h-4 w-4 mr-1" /> Send Message
             </Button>
@@ -519,32 +534,81 @@ export default function UserDetailPage() {
   );
 }
 
-function ProfileTab({ user }: { user: UserDetail }) {
+const TRIAL_STATUS_COLORS: Record<string, string> = {
+  active: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  reminded: "bg-orange-100 text-orange-800 border-orange-200",
+  expired: "bg-red-100 text-red-800 border-red-200",
+  converted: "bg-green-100 text-green-800 border-green-200",
+};
+
+function TrialStatusBadge({ status }: { status: string }) {
+  const cls = TRIAL_STATUS_COLORS[status] ?? "bg-gray-100 text-gray-700 border-gray-200";
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
+function ProfileTab({ user }: { user: UserDetail }) {
+  const hasAttribution = user.utmSource || user.utmCampaign || user.utmContent || user.paywallVariantKey || user.paywallRuleKey || user.variantId;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="text-sm">User Info</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Row label="Nickname" value={user.nickname} />
+            <Row label="Country" value={user.country ? `${formatCountry(user.country)} (${user.country})` : null} />
+            <Row label="Living Situation" value={user.livingSituation} />
+            <Row label="Onboarding Step" value={user.onboardingStep} />
+            <Row label="Onboarding Path" value={user.onboardingPath} />
+            <Row label="Onboarding Complete" value={user.onboardingComplete ? "Yes" : "No"} />
+            <Row label="Enrichment Complete" value={user.enrichmentComplete ? "Yes" : "No"} />
+            <Row label="Memory Paused" value={user.memoryPaused ? "Yes" : "No"} />
+            <Row label="Is Paused" value={user.isPaused ? "Yes" : "No"} />
+          </CardContent>
+        </Card>
+        {user.personality && (
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Personality</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <Row label="Primary Archetype" value={user.personality.primaryArchetype} />
+              <Row label="Secondary Archetype" value={user.personality.secondaryArchetype} />
+              <Row label="Tone" value={user.personality.tone} />
+              <Row label="Honesty" value={user.personality.honesty} />
+              <Row label="Depth" value={user.personality.depth} />
+              <Row label="Mirror Ceiling" value={user.personality.mirrorCeiling} />
+              <Row label="Initiation Freq" value={user.personality.initiationFrequency} />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
       <Card>
-        <CardHeader><CardTitle className="text-sm">User Info</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Trial Journey</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <Row label="Nickname" value={user.nickname} />
-          <Row label="Country" value={user.country ? `${formatCountry(user.country)} (${user.country})` : null} />
-          <Row label="Living Situation" value={user.livingSituation} />
-          <Row label="Onboarding Step" value={user.onboardingStep} />
-          <Row label="Onboarding Complete" value={user.onboardingComplete ? "Yes" : "No"} />
-          <Row label="Memory Paused" value={user.memoryPaused ? "Yes" : "No"} />
-          <Row label="Is Paused" value={user.isPaused ? "Yes" : "No"} />
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Trial Status</span>
+            <TrialStatusBadge status={user.trialStatus ?? "active"} />
+          </div>
+          <Row label="Trial Ends At" value={user.trialEndsAt ? formatDateTime(user.trialEndsAt) : null} />
+          <Row label="Trial Reminder Sent" value={user.trialReminderSentAt ? formatDateTime(user.trialReminderSentAt) : null} />
+          <Row label="Trial Expired Notice" value={user.trialExpiredNoticeSentAt ? formatDateTime(user.trialExpiredNoticeSentAt) : null} />
         </CardContent>
       </Card>
-      {user.personality && (
+
+      {hasAttribution && (
         <Card>
-          <CardHeader><CardTitle className="text-sm">Personality</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">Attribution</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <Row label="Primary Archetype" value={user.personality.primaryArchetype} />
-            <Row label="Secondary Archetype" value={user.personality.secondaryArchetype} />
-            <Row label="Tone" value={user.personality.tone} />
-            <Row label="Honesty" value={user.personality.honesty} />
-            <Row label="Depth" value={user.personality.depth} />
-            <Row label="Mirror Ceiling" value={user.personality.mirrorCeiling} />
-            <Row label="Initiation Freq" value={user.personality.initiationFrequency} />
+            <Row label="UTM Source" value={user.utmSource} />
+            <Row label="UTM Campaign" value={user.utmCampaign} />
+            <Row label="UTM Content" value={user.utmContent} />
+            <Row label="Variant ID" value={user.variantId} />
+            <Row label="Paywall Variant" value={user.paywallVariantKey} />
+            <Row label="Paywall Rule" value={user.paywallRuleKey} />
           </CardContent>
         </Card>
       )}
@@ -731,19 +795,82 @@ function EmotionalTab({
 }
 
 function SubscriptionTab({ subscription, usage }: { subscription: UserDetail; usage: UserDetail[] }) {
+  const hasPaid = subscription?.status === "active" || subscription?.status === "past_due" || subscription?.paywallPriceSetKey;
+  const isPPP = subscription?.pppTier && subscription.pppTier !== "T0";
+
   return (
     <div className="space-y-6">
       {subscription && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Subscription</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label="Tier" value={subscription.tier} />
-            <Row label="Status" value={subscription.status} />
-            <Row label="Billing" value={subscription.billingInterval} />
-            <Row label="Started" value={subscription.startedAt ? formatDate(subscription.startedAt) : "N/A"} />
-            <Row label="Next Billing" value={subscription.nextBillingAt ? formatDate(subscription.nextBillingAt) : "N/A"} />
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                Payment Status
+                <Badge variant={hasPaid ? "default" : "outline"}>
+                  {hasPaid ? "Paid" : "Not Paid / Trial"}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <Row label="Tier" value={subscription.tier} />
+              <Row label="Status" value={subscription.status} />
+              <Row label="Billing Interval" value={subscription.billingInterval} />
+              <Row label="Started" value={subscription.startedAt ? formatDate(subscription.startedAt) : null} />
+              <Row label="Next Billing" value={subscription.nextBillingAt ? formatDate(subscription.nextBillingAt) : null} />
+              <Row label="Canceled At" value={subscription.canceledAt ? formatDate(subscription.canceledAt) : null} />
+              {subscription.grandfatheredPriceCents && (
+                <Row label="Grandfathered Price" value={`$${(subscription.grandfatheredPriceCents / 100).toFixed(2)}/mo`} />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Provider</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <Row label="Provider" value={subscription.provider ?? (subscription.stripeCustomerId ? "stripe" : null)} />
+              <Row label="Customer ID" value={subscription.providerCustomerId ?? subscription.stripeCustomerId} />
+              <Row label="Subscription ID" value={subscription.providerSubscriptionId ?? subscription.stripeSubscriptionId} />
+              <Row label="Price ID" value={subscription.providerPriceId} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                Paywall Attribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <Row label="Variant Shown" value={subscription.paywallVariantKey} />
+              <Row label="Rule Matched" value={subscription.paywallRuleKey} />
+              <Row label="Price Set Used" value={subscription.paywallPriceSetKey} />
+            </CardContent>
+          </Card>
+
+          {(subscription.pppTier || subscription.purchaseCountry) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  PPP Pricing Snapshot
+                  {isPPP && <Badge variant="secondary" className="text-xs">PPP Applied</Badge>}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <Row label="PPP Tier" value={subscription.pppTier} />
+                <Row label="Multiplier" value={subscription.pppMultiplier ? `${subscription.pppMultiplier}x` : null} />
+                <Row label="Purchase Country" value={subscription.purchaseCountry} />
+                <Row
+                  label="Purchase Price"
+                  value={
+                    subscription.purchasePriceCents
+                      ? `${(subscription.purchasePriceCents / 100).toFixed(2)} ${subscription.purchaseCurrency ?? "USD"}`
+                      : null
+                  }
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
       <div>
         <h3 className="font-medium mb-2">Usage Counters</h3>

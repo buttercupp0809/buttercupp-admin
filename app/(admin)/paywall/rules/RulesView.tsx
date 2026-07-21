@@ -409,7 +409,7 @@ export function RulesView({
                 </TableCell>
               </TableRow>
             ) : (
-              rules.map((r, index) => (
+              rules.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-xs">{r.key}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
@@ -440,16 +440,14 @@ export function RulesView({
                       <Button variant="outline" size="sm" onClick={() => openEdit(r)}>
                         Edit
                       </Button>
-                      {index > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(r)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(r)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
