@@ -243,6 +243,23 @@ export default function UserDetailPage() {
                   const projectId = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID;
                   const filters = encodeURIComponent(
                     JSON.stringify({
+                      date_from: "-90d",
+                      filter_group: {
+                        type: "AND",
+                        values: [
+                          {
+                            type: "AND",
+                            values: [
+                              {
+                                type: "recording",
+                                key: "first_url",
+                                value: "app.vesspr.ai",
+                                operator: "icontains",
+                              },
+                            ],
+                          },
+                        ],
+                      },
                       properties: [
                         { key: "email", value: [user.email], operator: "exact", type: "person" },
                       ],
