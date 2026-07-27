@@ -35,7 +35,7 @@ export default function UsersPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("weekly");
-  const [sort, setSort] = useState("score");
+  const [sort, setSort] = useState("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
