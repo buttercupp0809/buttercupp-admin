@@ -18,20 +18,15 @@ export async function sendEmail(
     return;
   }
 
-  // Default to the verified karooli.ai sender. onboarding@resend.dev is Resend's
-  // shared sandbox domain and only delivers to the account owner, so it must never
-  // be the production default. Override with EMAIL_FROM once a Vesspr-branded
-  // domain is verified in Resend.
-  //
-  // Always present "Vesspr" as the display name so inboxes show the brand, not a
-  // raw address. If EMAIL_FROM is a bare address (e.g. "dev@karooli.ai") we wrap
+  // Default sender is noreply@vesspr.ai. Override with EMAIL_FROM env var if a
+  // different verified address is needed. If EMAIL_FROM is a bare address we wrap
   // it; if it already carries a display name ("Name <addr>") we use it verbatim.
   const fromEnv = process.env.EMAIL_FROM?.trim();
   const from = fromEnv
     ? fromEnv.includes("<")
       ? fromEnv
       : `Vesspr <${fromEnv}>`
-    : "Vesspr <contact@karooli.ai>";
+    : "Vesspr <noreply@vesspr.ai>";
   const result = await resend.emails.send({ from, to, subject, html });
 
   if (result.error) {
@@ -113,15 +108,37 @@ interface EmailShellOpts {
   appUrl?: string;
   /** Header hero art. "welcome" adds the mascot + confetti; "general" is the plain wordmark. */
   variant?: "welcome" | "general";
+  /**
+   * Transactional mode strips the hero image, social icons, Preferences link,
+   * and Unsubscribe link. Use for all account/trigger emails (password reset,
+   * nudge, shift-to-whatsapp, etc.) so Gmail routes them to Primary not Promotions.
+   * Only set to false for genuine marketing blasts where Promotions is acceptable.
+   */
+  transactional?: boolean;
 }
 
 export function emailShell(o: EmailShellOpts): string {
   const appUrl = o.appUrl || appBaseUrl();
+  // Default to transactional — callers must explicitly opt-in to the full
+  // marketing shell (hero image + social row + unsubscribe) by passing
+  // transactional: false.
+  const isTransactional = o.transactional !== false;
+
   const preheader = o.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(o.preheader)}</div>`
     : "";
 
   const heroFile = o.variant === "welcome" ? "welcome-head.png" : "general-head.png";
+
+  // Transactional: small text wordmark instead of the full-bleed hero image.
+  // Marketing: keep the image.
+  const header = isTransactional
+    ? `<tr><td style="background:${BRAND.cardBg};padding:28px 24px 0;border-radius:20px 20px 0 0;">
+        <span style="font-size:18px;font-weight:700;color:${BRAND.heading};font-family:${HEADING_FONT};">Vesspr</span>
+      </td></tr>`
+    : `<tr><td style="padding:0;font-size:0;line-height:0;">
+        <img src="${appUrl}/vesspr/${heroFile}" width="600" alt="Vesspr" style="display:block;width:100%;height:auto;border:0;border-radius:20px 20px 0 0;"/>
+      </td></tr>`;
 
   const cta =
     o.ctaText && o.ctaUrl
@@ -132,23 +149,19 @@ export function emailShell(o: EmailShellOpts): string {
 
   const footerNote = o.footerNote ?? "You created a Vesspr account with this email.";
 
-  return `<!doctype html>
-<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${escapeHtml(o.title)}</title></head>
-<body style="margin:0;padding:0;background:${BRAND.pageBg};font-family:${BODY_FONT};color:${BRAND.body};">
-${preheader}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.pageBg};">
-  <tr><td align="center" style="padding:24px 12px;">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${BRAND.cardBg};border-radius:20px;overflow:hidden;">
-      <tr><td style="padding:0;font-size:0;line-height:0;">
-        <img src="${appUrl}/vesspr/${heroFile}" width="600" alt="Vesspr" style="display:block;width:100%;height:auto;border:0;border-radius:20px 20px 0 0;"/>
+  // Transactional footer: just the account note, no unsubscribe or preferences links.
+  // Marketing footer: full social row + unsubscribe + preferences.
+  const footerRows = isTransactional
+    ? `<tr><td style="background:${BRAND.cardBg};padding:8px 24px 0;">
+        <div style="border-top:1px solid ${BRAND.divider};font-size:1px;line-height:1px;">&nbsp;</div>
       </td></tr>
-      <tr><td style="background:${BRAND.cardBg};padding:12px 24px 8px;">
-        <h1 style="margin:0 0 20px;font-size:28px;font-weight:600;color:${BRAND.heading};line-height:1.25;font-family:${HEADING_FONT};">${o.title}</h1>
-        <div style="font-size:15px;line-height:24px;color:${BRAND.body};font-family:${BODY_FONT};">${o.bodyHtml}</div>
-        ${cta ? `<div style="margin:28px 0 4px;text-align:center;">${cta}</div>` : ""}
-      </td></tr>
-      <tr><td style="background:${BRAND.cardBg};padding:24px 24px 8px;">
+      <tr><td style="background:${BRAND.cardBg};padding:16px 24px 28px;text-align:center;">
+        <div style="font-size:13px;line-height:20px;color:${BRAND.footerText};font-family:${BODY_FONT};">
+          ${escapeHtml(footerNote)}<br/>
+          <span style="color:#999;">Vesspr &copy; ${new Date().getFullYear()}</span>
+        </div>
+      </td></tr>`
+    : `<tr><td style="background:${BRAND.cardBg};padding:24px 24px 8px;">
         ${socialRow(appUrl)}
       </td></tr>
       <tr><td style="background:${BRAND.cardBg};padding:8px 24px 0;">
@@ -161,9 +174,25 @@ ${preheader}
             <a href="${appUrl}/dashboard/settings" style="color:${BRAND.footerText};text-decoration:underline;">Preferences</a>&nbsp;&nbsp;
             <a href="${appUrl}/unsubscribe" style="color:${BRAND.footerText};text-decoration:underline;">Unsubscribe</a>
           </span><br/>
-          Vesspr · © ${new Date().getFullYear()}
+          Vesspr &copy; ${new Date().getFullYear()}
         </div>
+      </td></tr>`;
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${escapeHtml(o.title)}</title></head>
+<body style="margin:0;padding:0;background:${BRAND.pageBg};font-family:${BODY_FONT};color:${BRAND.body};">
+${preheader}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.pageBg};">
+  <tr><td align="center" style="padding:24px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${BRAND.cardBg};border-radius:20px;overflow:hidden;">
+      ${header}
+      <tr><td style="background:${BRAND.cardBg};padding:20px 24px 8px;">
+        <h1 style="margin:0 0 20px;font-size:26px;font-weight:600;color:${BRAND.heading};line-height:1.25;font-family:${HEADING_FONT};">${o.title}</h1>
+        <div style="font-size:15px;line-height:24px;color:${BRAND.body};font-family:${BODY_FONT};">${o.bodyHtml}</div>
+        ${cta ? `<div style="margin:28px 0 4px;text-align:center;">${cta}</div>` : ""}
       </td></tr>
+      ${footerRows}
     </table>
   </td></tr>
 </table>

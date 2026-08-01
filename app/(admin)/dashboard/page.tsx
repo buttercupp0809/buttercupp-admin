@@ -2,10 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -97,6 +105,11 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [onboardingStats, setOnboardingStats] = useState<OnboardingStats | null>(null);
   const [trialStats, setTrialStats] = useState<TrialStats | null>(null);
+  const [extendTarget, setExtendTarget] = useState<TrialUser | null>(null);
+  const [extendDays, setExtendDays] = useState(7);
+  const [extending, setExtending] = useState(false);
+  const [nudgeTarget, setNudgeTarget] = useState<TrialUser | null>(null);
+  const [sendingNudge, setSendingNudge] = useState(false);
 
   const days = range === "all" ? "365" : range;
 
@@ -130,6 +143,47 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  async function handleExtend() {
+    if (!extendTarget) return;
+    setExtending(true);
+    try {
+      const res = await fetch(`/api/users/${extendTarget.id}/extend-trial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days: extendDays }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Extend failed"); return; }
+      toast.success(`Trial extended by ${extendDays} days for ${extendTarget.name}`);
+      setExtendTarget(null);
+      fetchAll();
+    } catch {
+      toast.error("Failed to extend trial");
+    } finally {
+      setExtending(false);
+    }
+  }
+
+  async function handleSendNudge() {
+    if (!nudgeTarget) return;
+    setSendingNudge(true);
+    try {
+      const res = await fetch(`/api/users/${nudgeTarget.id}/send-nudge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Send failed"); return; }
+      toast.success(`Nudge email sent to ${nudgeTarget.name}`);
+      setNudgeTarget(null);
+    } catch {
+      toast.error("Failed to send nudge email");
+    } finally {
+      setSendingNudge(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -497,6 +551,7 @@ export default function DashboardPage() {
                   <TableHead>Onboarding</TableHead>
                   <TableHead className="text-right">Trial Ends</TableHead>
                   <TableHead className="text-right">Days Left</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -541,11 +596,34 @@ export default function DashboardPage() {
                           </Badge>
                         )}
                       </TableCell>
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={(e) => { e.stopPropagation(); setExtendDays(7); setExtendTarget(u); }}
+                          >
+                            Extend
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={(e) => { e.stopPropagation(); setNudgeTarget(u); }}
+                          >
+                            Nudge
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
                       {trialStats ? "No urgent trials right now" : "Loading..."}
                     </TableCell>
                   </TableRow>
@@ -555,6 +633,87 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Extend Trial Dialog */}
+      <Dialog open={!!extendTarget} onOpenChange={(open) => !open && setExtendTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Extend Trial</DialogTitle>
+          </DialogHeader>
+          {extendTarget && (
+            <div className="space-y-4 mt-2">
+              <p className="text-sm text-muted-foreground">
+                Extending trial for <strong>{extendTarget.name}</strong> ({extendTarget.email})
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Add days:</p>
+                <div className="flex gap-2">
+                  {([3, 7, 14, 30] as const).map((d) => (
+                    <Button
+                      key={d}
+                      variant={extendDays === d ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setExtendDays(d)}
+                    >
+                      +{d}d
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-md bg-muted px-3 py-2 text-sm">
+                {extendTarget.daysLeft > 0
+                  ? `Current end + ${extendDays} more days`
+                  : `Starts from today + ${extendDays} days`}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExtendTarget(null)}>
+              Cancel
+            </Button>
+            <Button disabled={extending} onClick={handleExtend}>
+              {extending ? "Extending…" : `Add ${extendDays} Days`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Nudge Confirm Dialog */}
+      <Dialog open={!!nudgeTarget} onOpenChange={(open) => !open && setNudgeTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Nudge Email</DialogTitle>
+          </DialogHeader>
+          {nudgeTarget && (
+            <div className="space-y-3 mt-2 text-sm">
+              <p className="text-muted-foreground">
+                Sending to <strong>{nudgeTarget.name}</strong> ({nudgeTarget.email})
+              </p>
+              <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                <p>
+                  <span className="text-muted-foreground">Template: </span>
+                  <Badge variant="outline" className="text-xs">
+                    {nudgeTarget.daysLeft > 0 ? `Expiring soon (${nudgeTarget.daysLeft}d left)` : "Re-engagement (expired)"}
+                  </Badge>
+                </p>
+                <p className="text-xs text-muted-foreground pt-1">
+                  {nudgeTarget.daysLeft > 0
+                    ? `"There's something I've been wanting to say..." — warm, personal email encouraging them to continue before their trial ends.`
+                    : `"I've been thinking about you..." — gentle re-engagement email inviting them to come back.`}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNudgeTarget(null)}>
+              Cancel
+            </Button>
+            <Button disabled={sendingNudge} onClick={handleSendNudge}>
+              {sendingNudge ? "Sending…" : "Send Nudge Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

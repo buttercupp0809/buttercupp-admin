@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake, Video } from "lucide-react";
+import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake, Video, Timer, Sparkles } from "lucide-react";
 import { formatDate, formatDateTime, formatCountry } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +49,16 @@ export default function UserDetailPage() {
   const [birthdayOpen, setBirthdayOpen] = useState(false);
   const [birthdayForce, setBirthdayForce] = useState(false);
   const [sendingBirthday, setSendingBirthday] = useState(false);
+  const [trialOpen, setTrialOpen] = useState(false);
+  const [extendDays, setExtendDays] = useState(7);
+  const [extendingTrial, setExtendingTrial] = useState(false);
+  const [nudgeOpen, setNudgeOpen] = useState(false);
+  const [nudgeTemplate, setNudgeTemplate] = useState<string>("");
+  const [nudgeDaysLeft, setNudgeDaysLeft] = useState<number | null>(null);
+  const [nudgeSubject, setNudgeSubject] = useState("");
+  const [nudgeBody, setNudgeBody] = useState("");
+  const [nudgeCtaText, setNudgeCtaText] = useState("");
+  const [sendingNudge, setSendingNudge] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -197,6 +207,73 @@ export default function UserDetailPage() {
     }
   }
 
+  async function handleExtendTrial() {
+    setExtendingTrial(true);
+    try {
+      const res = await fetch(`/api/users/${id}/extend-trial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days: extendDays }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Extend failed"); return; }
+      toast.success(`Trial extended by ${extendDays} days`);
+      setUser((prev: UserDetail) =>
+        prev ? { ...prev, trialEndsAt: data.trialEndsAt, trialStatus: data.trialStatus } : prev
+      );
+      setTrialOpen(false);
+    } catch {
+      toast.error("Failed to extend trial");
+    } finally {
+      setExtendingTrial(false);
+    }
+  }
+
+  async function openNudgeDialog() {
+    setNudgeSubject("");
+    setNudgeBody("");
+    setNudgeCtaText("");
+    setNudgeTemplate("");
+    setNudgeDaysLeft(null);
+    setNudgeOpen(true);
+    try {
+      const res = await fetch(`/api/users/${id}/send-nudge`);
+      const data = await res.json();
+      if (res.ok) {
+        setNudgeSubject(data.subject ?? "");
+        setNudgeBody(data.body ?? "");
+        setNudgeCtaText(data.ctaText ?? "");
+        setNudgeTemplate(data.template ?? "");
+        setNudgeDaysLeft(data.daysLeft ?? null);
+      }
+    } catch {
+      // defaults load failed, admin can still type manually
+    }
+  }
+
+  async function handleSendNudge() {
+    setSendingNudge(true);
+    try {
+      const res = await fetch(`/api/users/${id}/send-nudge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: nudgeSubject || undefined,
+          body: nudgeBody || undefined,
+          ctaText: nudgeCtaText || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Send failed"); return; }
+      toast.success(`Nudge email sent (${data.template === "expired" ? "re-engagement" : "expiring soon"} template)`);
+      setNudgeOpen(false);
+    } catch {
+      toast.error("Failed to send nudge email");
+    } finally {
+      setSendingNudge(false);
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-12 text-muted-foreground">Loading user…</div>;
   }
@@ -228,7 +305,7 @@ export default function UserDetailPage() {
             {user.age && <span>Age: {user.age}</span>}
             {user.gender && <span>Gender: {user.gender}</span>}
           </div>
-          <div className="flex gap-2 mt-4">
+          <div className="flex flex-wrap gap-2 mt-4">
             <Button size="sm" variant="outline" onClick={() => router.push(`/email?to=${user.email}`)}>
               <Mail className="h-4 w-4 mr-1" /> Send Email
             </Button>
@@ -277,6 +354,26 @@ export default function UserDetailPage() {
             )}
             <Button size="sm" variant="outline" onClick={() => setMsgOpen(true)}>
               <Send className="h-4 w-4 mr-1" /> Send Message
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTrialOpen(true)}
+            >
+              <Timer className="h-4 w-4 mr-1" /> Extend Trial
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={user.subscriptionTier !== "free"}
+              title={
+                user.subscriptionTier !== "free"
+                  ? "User is already a paid subscriber"
+                  : "Send an emotional nudge email to encourage upgrading"
+              }
+              onClick={openNudgeDialog}
+            >
+              <Sparkles className="h-4 w-4 mr-1" /> Send Nudge
             </Button>
             <Button
               size="sm"
@@ -551,6 +648,130 @@ export default function UserDetailPage() {
               onClick={handleShiftToWhatsapp}
             >
               {shifting ? "Shifting…" : "Shift to WhatsApp"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Extend Trial Dialog */}
+      <Dialog open={trialOpen} onOpenChange={setTrialOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Extend Trial for {user.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>
+                Current trial end:{" "}
+                <strong>
+                  {user.trialEndsAt ? formatDateTime(user.trialEndsAt) : "No trial set"}
+                </strong>
+              </p>
+              <p>
+                Trial status:{" "}
+                <strong>{user.trialStatus ?? "—"}</strong>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Add days:</p>
+              <div className="flex gap-2">
+                {([3, 7, 14, 30] as const).map((d) => (
+                  <Button
+                    key={d}
+                    variant={extendDays === d ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setExtendDays(d)}
+                  >
+                    +{d}d
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-md bg-muted px-3 py-2 text-sm">
+              New end date:{" "}
+              <strong>
+                {(() => {
+                  const now = new Date();
+                  const base = user.trialEndsAt && new Date(user.trialEndsAt) > now
+                    ? new Date(user.trialEndsAt)
+                    : now;
+                  const newDate = new Date(base.getTime() + extendDays * 24 * 60 * 60 * 1000);
+                  return formatDate(newDate);
+                })()}
+              </strong>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrialOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={extendingTrial} onClick={handleExtendTrial}>
+              {extendingTrial ? "Extending…" : `Add ${extendDays} Days`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Nudge Email Dialog */}
+      <Dialog open={nudgeOpen} onOpenChange={setNudgeOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              Send Nudge Email
+              {nudgeTemplate && (
+                <Badge variant="outline" className="text-xs ml-2 font-normal">
+                  {nudgeTemplate === "expired"
+                    ? "Re-engagement template"
+                    : nudgeDaysLeft !== null
+                      ? `Expiring soon — ${nudgeDaysLeft}d left`
+                      : "Expiring soon template"}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-1">
+            <p className="text-xs text-muted-foreground">
+              Sending to <strong>{user.email}</strong>. All fields are pre-filled from the template — edit anything before sending.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Subject line</label>
+              <Input
+                value={nudgeSubject}
+                onChange={(e) => setNudgeSubject(e.target.value)}
+                placeholder={nudgeSubject ? "" : "Loading…"}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Email body</label>
+              <p className="text-xs text-muted-foreground">Plain text. Blank lines create new paragraphs.</p>
+              <textarea
+                className="w-full min-h-[220px] border border-input rounded-md bg-background px-3 py-2 text-sm font-mono leading-relaxed resize-y"
+                value={nudgeBody}
+                onChange={(e) => setNudgeBody(e.target.value)}
+                placeholder={nudgeBody ? "" : "Loading…"}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">CTA button text</label>
+              <Input
+                value={nudgeCtaText}
+                onChange={(e) => setNudgeCtaText(e.target.value)}
+                placeholder="e.g. Keep our story going"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNudgeOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={sendingNudge || !nudgeSubject.trim() || !nudgeBody.trim()}
+              onClick={handleSendNudge}
+            >
+              {sendingNudge ? "Sending…" : "Send Nudge Email"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -32,7 +32,7 @@ const TEMPLATES: Record<
   { label: string; subject: string; body: string }
 > = {
   a: {
-    label: "Variant A — The Witness",
+    label: "Variant A: The Witness",
     subject: "You built something real in there",
     body: `<p>Hi [Name],</p>
 <p>You went through the whole thing. Picked your archetype, told us what drains you, what you need from a friend. That's not nothing.</p>
@@ -42,7 +42,7 @@ const TEMPLATES: Record<
 ${SIGNATURE}`,
   },
   b: {
-    label: "Variant B — The Anchor",
+    label: "Variant B: The Anchor",
     subject: "Still here if you need it",
     body: `<p>Hi [Name],</p>
 <p>We noticed you didn't finish. That's okay.</p>
@@ -53,7 +53,7 @@ ${SIGNATURE}`,
 ${SIGNATURE}`,
   },
   c: {
-    label: "Variant C — The Spark",
+    label: "Variant C: The Spark",
     subject: "Your Vesspr is kind of just sitting there",
     body: `<p>Hi [Name],</p>
 <p>Quick one.</p>
