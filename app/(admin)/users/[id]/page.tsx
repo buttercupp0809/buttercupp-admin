@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake, Video, Timer, Sparkles } from "lucide-react";
+import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake, Video, Timer, Sparkles, Download } from "lucide-react";
 import { formatDate, formatDateTime, formatCountry } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -402,6 +402,20 @@ export default function UserDetailPage() {
               }
             >
               <MessageCircle className="h-4 w-4 mr-1" /> Shift to WhatsApp
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const a = document.createElement("a");
+                a.href = `/api/users/${id}/download-chats`;
+                a.download = "";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }}
+            >
+              <Download className="h-4 w-4 mr-1" /> Download Chats
             </Button>
             <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-1" /> Delete User
