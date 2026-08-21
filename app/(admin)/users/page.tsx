@@ -135,6 +135,7 @@ export default function UsersPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Tier</TableHead>
               <TableHead className="text-right">Token Balance</TableHead>
@@ -146,13 +147,13 @@ export default function UsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -163,7 +164,10 @@ export default function UsersPage() {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => router.push(`/users/${user.id}`)}
                 >
-                  <TableCell className="text-sm font-medium">{user.email}</TableCell>
+                  <TableCell className="text-sm font-medium">
+                    {user.profile?.displayName ?? <span className="text-muted-foreground italic">No name</span>}
+                  </TableCell>
+                  <TableCell className="text-sm">{user.email}</TableCell>
                   <TableCell>
                     <Badge variant={tierVariant(user.subscriptionTier)} className="text-xs capitalize">
                       {user.subscriptionTier}

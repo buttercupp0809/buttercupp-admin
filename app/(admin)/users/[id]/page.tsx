@@ -195,8 +195,11 @@ export default function UserDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-xl">{user.email}</CardTitle>
-            <p className="text-sm text-muted-foreground">ID: {user.id}</p>
+            <CardTitle className="text-xl">
+              {user.profile?.displayName ?? user.email}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">{user.email}</p>
+            <p className="text-xs text-muted-foreground">ID: {user.id}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge variant="outline">{user.subscriptionTier}</Badge>
@@ -485,6 +488,21 @@ function ProfileTab({
             </>
           )}
           <Row label="Token Balance" value={user.tokenBalance} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Profile</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <Row label="Display Name" value={user.profile?.displayName} />
+          <Row label="Gender" value={user.profile?.gender} />
+          {user.profile?.preferences && (
+            <div>
+              <p className="text-muted-foreground mb-1">Preferences</p>
+              <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap">
+                {JSON.stringify(user.profile.preferences, null, 2)}
+              </pre>
+            </div>
+          )}
         </CardContent>
       </Card>
       <Card>

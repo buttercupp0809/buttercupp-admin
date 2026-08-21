@@ -32,6 +32,7 @@ export async function GET(
           },
           orderBy: { lastMessageAt: "desc" },
         },
+        profile: true,
         memories: { orderBy: { createdAt: "desc" }, take: 50 },
         subscription: true,
         tokenLedger: { orderBy: { createdAt: "desc" }, take: 100 },

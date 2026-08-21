@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
         ageVerificationLevel: true,
         completedOnboardingAt: true,
         createdAt: true,
+        profile: { select: { displayName: true, gender: true } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
