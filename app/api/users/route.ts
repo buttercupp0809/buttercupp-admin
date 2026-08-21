@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { HIDDEN_USER_IDS } from "@/lib/hidden-users";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search")?.trim() ?? "";
   const limit = 25;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { id: { notIn: HIDDEN_USER_IDS } };
   if (tier !== "all") where.subscriptionTier = tier;
   if (search) where.email = { contains: search, mode: "insensitive" };
 

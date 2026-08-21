@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { HIDDEN_USER_IDS } from "@/lib/hidden-users";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +11,12 @@ export async function GET() {
     _sum: { messageCount: true },
     orderBy: { _sum: { messageCount: "desc" } },
     take: 50,
+    where: { userId: { notIn: HIDDEN_USER_IDS } },
   });
 
   const userIds = conversations.map((c) => c.userId);
   const users = await prisma.user.findMany({
-    where: { id: { in: userIds } },
+    where: { id: { in: userIds }, NOT: { id: { in: HIDDEN_USER_IDS } } },
     select: { id: true, email: true, subscriptionTier: true, tokenBalance: true, createdAt: true },
   });
 
