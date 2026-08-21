@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAdminEmail } from "@/lib/auth";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,43 @@ function bucketForKey(key: string): string {
   if (key.startsWith("images/")) return process.env.POPPY_S3_BUCKET_GENERATED ?? "";
   if (key.startsWith("reels/")) return process.env.POPPY_S3_BUCKET_REELS ?? "";
   return process.env.S3_BUCKET ?? "";
+}
+
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string; mediaId: string }> }
+) {
+  const email = await getAdminEmail();
+  if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: characterId, mediaId } = await ctx.params;
+
+  const media = await prisma.characterMedia.findUnique({ where: { id: mediaId } });
+  if (!media) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (media.characterId !== characterId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const allowed = ["title", "isPrimary", "isDisplay", "isMain", "hidden", "sort", "kind"] as const;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: Record<string, any> = {};
+  for (const key of allowed) {
+    if (key in body) data[key] = body[key];
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "No valid fields" }, { status: 400 });
+  }
+
+  try {
+    const updated = await prisma.characterMedia.update({ where: { id: mediaId }, data });
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("[media-put]", err);
+    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  }
 }
 
 export async function DELETE(

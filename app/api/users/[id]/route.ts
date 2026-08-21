@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -47,6 +48,39 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const admin = await getAdminEmail();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const body = await req.json();
+  const { subscriptionTier, freeMessagesUsed } = body as {
+    subscriptionTier?: string;
+    freeMessagesUsed?: number;
+  };
+
+  const data: Record<string, unknown> = {};
+  if (subscriptionTier !== undefined) data.subscriptionTier = subscriptionTier;
+  if (freeMessagesUsed !== undefined) data.freeMessagesUsed = freeMessagesUsed;
+
+  const updatedUser = await prisma.user.update({ where: { id }, data });
+
+  if (subscriptionTier !== undefined) {
+    await prisma.subscription.updateMany({
+      where: { userId: id },
+      data: { tier: subscriptionTier as "free" | "premium" | "pro" },
+    });
+  }
+
+  return NextResponse.json({
+    subscriptionTier: updatedUser.subscriptionTier,
+    freeMessagesUsed: updatedUser.freeMessagesUsed,
+  });
 }
 
 export async function DELETE(

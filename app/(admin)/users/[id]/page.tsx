@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, Trash2, Coins, ChevronRight } from "lucide-react";
+import { ArrowLeft, Mail, Trash2, Coins, ChevronRight, Sparkles, MessageSquarePlus } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +45,12 @@ export default function UserDetailPage() {
   const [tokenAmount, setTokenAmount] = useState("");
   const [tokenNote, setTokenNote] = useState("");
   const [issuingTokens, setIssuingTokens] = useState(false);
+
+  // Activate trial dialog
+  const [trialOpen, setTrialOpen] = useState(false);
+  const [trialTier, setTrialTier] = useState<"premium" | "pro">("premium");
+  const [trialDays, setTrialDays] = useState("30");
+  const [activatingTrial, setActivatingTrial] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -123,6 +129,56 @@ export default function UserDetailPage() {
     }
   }
 
+  async function handleActivateTrial() {
+    const days = parseInt(trialDays, 10);
+    if (!days || days < 1 || days > 365) {
+      toast.error("Days must be between 1 and 365");
+      return;
+    }
+    setActivatingTrial(true);
+    try {
+      const res = await fetch(`/api/users/${id}/activate-trial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days, tier: trialTier }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to activate trial");
+        return;
+      }
+      toast.success(`${trialTier} trial activated for ${days} days`);
+      setUser((prev: UserDetail) => {
+        if (!prev) return prev;
+        const updatedSub = prev.subscription
+          ? {
+              ...prev.subscription,
+              tier: data.subscriptionTier,
+              plan: "trial",
+              status: "active",
+              currentPeriodEnd: data.currentPeriodEnd,
+            }
+          : {
+              provider: "admin_trial",
+              tier: data.subscriptionTier,
+              plan: "trial",
+              status: "active",
+              currentPeriodEnd: data.currentPeriodEnd,
+            };
+        return {
+          ...prev,
+          subscriptionTier: data.subscriptionTier,
+          subscription: updatedSub,
+        };
+      });
+      setTrialOpen(false);
+    } catch {
+      toast.error("Failed to activate trial");
+    } finally {
+      setActivatingTrial(false);
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-12 text-muted-foreground">Loading user...</div>;
   }
@@ -159,6 +215,9 @@ export default function UserDetailPage() {
             <Button size="sm" variant="outline" onClick={() => setTokenOpen(true)}>
               <Coins className="h-4 w-4 mr-1" /> Issue Token Grant
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setTrialOpen(true)}>
+              <Sparkles className="h-4 w-4 mr-1" /> Activate Trial
+            </Button>
             <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-1" /> Delete User
             </Button>
@@ -177,10 +236,10 @@ export default function UserDetailPage() {
         </TabsList>
 
         <TabsContent value="profile" className="mt-4">
-          <ProfileTab user={user} />
+          <ProfileTab user={user} userId={id} onUserUpdate={(patch) => setUser((prev: UserDetail) => prev ? { ...prev, ...patch } : prev)} />
         </TabsContent>
         <TabsContent value="conversations" className="mt-4">
-          <ConversationsTab conversations={user.conversations} router={router} />
+          <ConversationsTab conversations={user.conversations} userId={id} router={router} />
         </TabsContent>
         <TabsContent value="memories" className="mt-4">
           <MemoriesTab memories={user.memories} />
@@ -274,23 +333,158 @@ export default function UserDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Activate Trial Dialog */}
+      <Dialog open={trialOpen} onOpenChange={setTrialOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Activate Premium Trial</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              Activate a trial subscription for <strong>{user.email}</strong>.
+            </p>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Tier:</p>
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                value={trialTier}
+                onChange={(e) => setTrialTier(e.target.value as "premium" | "pro")}
+              >
+                <option value="premium">Premium</option>
+                <option value="pro">Pro</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Days:</p>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={trialDays}
+                onChange={(e) => setTrialDays(e.target.value)}
+                placeholder="30"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrialOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={activatingTrial || !trialDays || parseInt(trialDays, 10) < 1}
+              onClick={handleActivateTrial}
+            >
+              {activatingTrial ? "Activating..." : "Activate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function ProfileTab({ user }: { user: UserDetail }) {
+function ProfileTab({
+  user,
+  userId,
+  onUserUpdate,
+}: {
+  user: UserDetail;
+  userId: string;
+  onUserUpdate: (patch: Partial<UserDetail>) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [tier, setTier] = useState<string>(user.subscriptionTier);
+  const [freeMessages, setFreeMessages] = useState<string>(String(user.freeMessagesUsed ?? 0));
+  const [saving, setSaving] = useState(false);
+
+  function handleEdit() {
+    setTier(user.subscriptionTier);
+    setFreeMessages(String(user.freeMessagesUsed ?? 0));
+    setEditing(true);
+  }
+
+  function handleCancel() {
+    setEditing(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriptionTier: tier,
+          freeMessagesUsed: parseInt(freeMessages, 10),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to save changes");
+        return;
+      }
+      onUserUpdate(data);
+      toast.success("Profile updated");
+      setEditing(false);
+    } catch {
+      toast.error("Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
-        <CardHeader><CardTitle className="text-sm">Account</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-sm">Account</CardTitle>
+          {!editing ? (
+            <Button size="sm" variant="outline" onClick={handleEdit}>Edit</Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleCancel} disabled={saving}>Cancel</Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+            </div>
+          )}
+        </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <Row label="Email" value={user.email} />
           <Row label="Date of Birth" value={user.dob ? formatDate(user.dob) : null} />
           <Row label="Jurisdiction" value={user.jurisdiction} />
           <Row label="OAuth Provider" value={user.oauthProvider} />
-          <Row label="Subscription Tier" value={user.subscriptionTier} />
+          {editing ? (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Subscription Tier</span>
+                <select
+                  className="border rounded px-2 py-1 text-sm bg-background"
+                  value={tier}
+                  onChange={(e) => setTier(e.target.value)}
+                >
+                  <option value="free">free</option>
+                  <option value="premium">premium</option>
+                  <option value="pro">pro</option>
+                </select>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Free Messages Used</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={freeMessages}
+                  onChange={(e) => setFreeMessages(e.target.value)}
+                  className="border rounded px-2 py-1 text-sm w-24 text-right bg-background"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <Row label="Subscription Tier" value={user.subscriptionTier} />
+              <Row label="Free Messages Used" value={user.freeMessagesUsed} />
+            </>
+          )}
           <Row label="Token Balance" value={user.tokenBalance} />
-          <Row label="Free Messages Used" value={user.freeMessagesUsed} />
         </CardContent>
       </Card>
       <Card>
@@ -313,78 +507,156 @@ function ProfileTab({ user }: { user: UserDetail }) {
 
 function ConversationsTab({
   conversations,
+  userId,
   router,
 }: {
   conversations: UserDetail[];
+  userId: string;
   router: ReturnType<typeof useRouter>;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sendMsgConv, setSendMsgConv] = useState<UserDetail | null>(null);
+  const [msgContent, setMsgContent] = useState("");
+  const [sendingMsg, setSendingMsg] = useState(false);
+  const [newMessages, setNewMessages] = useState<Record<string, ChatMessage[]>>({});
+
+  async function handleSendMessage() {
+    if (!sendMsgConv || !msgContent.trim()) return;
+    setSendingMsg(true);
+    try {
+      const res = await fetch(`/api/users/${userId}/send-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: sendMsgConv.id, content: msgContent.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to send message");
+        return;
+      }
+      toast.success("Message sent");
+      setNewMessages((prev) => ({
+        ...prev,
+        [sendMsgConv.id]: [...(prev[sendMsgConv.id] ?? []), data.message],
+      }));
+      setMsgContent("");
+      setSendMsgConv(null);
+    } catch {
+      toast.error("Failed to send message");
+    } finally {
+      setSendingMsg(false);
+    }
+  }
 
   if (!conversations?.length) return <Empty label="No conversations" />;
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-8" />
-          <TableHead>Character Name</TableHead>
-          <TableHead>Style</TableHead>
-          <TableHead>Content Rating</TableHead>
-          <TableHead>Moderation Status</TableHead>
-          <TableHead>Message Count</TableHead>
-          <TableHead>Last Message At</TableHead>
-          <TableHead />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {conversations.map((c: UserDetail) => {
-          const isOpen = expandedId === c.id;
-          return (
-            <Fragment key={c.id}>
-              <TableRow
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => setExpandedId(isOpen ? null : c.id)}
-              >
-                <TableCell className="text-muted-foreground">
-                  <ChevronRight
-                    className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">{c.character?.name ?? c.characterId}</TableCell>
-                <TableCell><Badge variant="outline">{c.character?.style ?? "—"}</Badge></TableCell>
-                <TableCell>{c.character?.contentRating ?? "—"}</TableCell>
-                <TableCell>{c.character?.moderationStatus ?? "—"}</TableCell>
-                <TableCell>{c.messageCount}</TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {c.lastMessageAt ? formatDateTime(c.lastMessageAt) : "—"}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/characters/${c.character?.id ?? c.characterId}`);
-                    }}
-                  >
-                    View character
-                  </Button>
-                </TableCell>
-              </TableRow>
-              {isOpen && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={8} className="bg-muted/30 p-0">
-                    <ConversationMessages
-                      conversationId={c.id}
-                      characterName={c.character?.name ?? c.characterId}
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-8" />
+            <TableHead>Character Name</TableHead>
+            <TableHead>Style</TableHead>
+            <TableHead>Content Rating</TableHead>
+            <TableHead>Moderation Status</TableHead>
+            <TableHead>Message Count</TableHead>
+            <TableHead>Last Message At</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {conversations.map((c: UserDetail) => {
+            const isOpen = expandedId === c.id;
+            return (
+              <Fragment key={c.id}>
+                <TableRow
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => setExpandedId(isOpen ? null : c.id)}
+                >
+                  <TableCell className="text-muted-foreground">
+                    <ChevronRight
+                      className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
                     />
                   </TableCell>
+                  <TableCell className="font-medium">{c.character?.name ?? c.characterId}</TableCell>
+                  <TableCell><Badge variant="outline">{c.character?.style ?? "—"}</Badge></TableCell>
+                  <TableCell>{c.character?.contentRating ?? "—"}</TableCell>
+                  <TableCell>{c.character?.moderationStatus ?? "—"}</TableCell>
+                  <TableCell>{c.messageCount}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                    {c.lastMessageAt ? formatDateTime(c.lastMessageAt) : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/characters/${c.character?.id ?? c.characterId}`);
+                        }}
+                      >
+                        View character
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSendMsgConv(c);
+                          setMsgContent("");
+                        }}
+                      >
+                        <MessageSquarePlus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              )}
-            </Fragment>
-          );
-        })}
-      </TableBody>
-    </Table>
+                {isOpen && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={8} className="bg-muted/30 p-0">
+                      <ConversationMessages
+                        conversationId={c.id}
+                        characterName={c.character?.name ?? c.characterId}
+                        injectedMessages={newMessages[c.id] ?? []}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+
+      <Dialog open={!!sendMsgConv} onOpenChange={(open) => { if (!open) setSendMsgConv(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Send message as {sendMsgConv?.character?.name ?? sendMsgConv?.characterId}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2">
+            <textarea
+              placeholder="Message content..."
+              value={msgContent}
+              onChange={(e) => setMsgContent(e.target.value)}
+              rows={5}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendMsgConv(null)}>Cancel</Button>
+            <Button
+              disabled={sendingMsg || !msgContent.trim()}
+              onClick={handleSendMessage}
+            >
+              {sendingMsg ? "Sending..." : "Send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -400,9 +672,11 @@ interface ChatMessage {
 function ConversationMessages({
   conversationId,
   characterName,
+  injectedMessages,
 }: {
   conversationId: string;
   characterName: string;
+  injectedMessages: ChatMessage[];
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [page, setPage] = useState(1);
@@ -432,10 +706,12 @@ function ConversationMessages({
     };
   }, [conversationId, page]);
 
+  const allMessages = [...messages, ...injectedMessages];
+
   if (loading && messages.length === 0) {
     return <div className="py-6 text-center text-sm text-muted-foreground">Loading messages...</div>;
   }
-  if (!loading && total === 0) {
+  if (!loading && total === 0 && injectedMessages.length === 0) {
     return <div className="py-6 text-center text-sm text-muted-foreground">No messages in this conversation</div>;
   }
 
@@ -444,7 +720,7 @@ function ConversationMessages({
       <p className="text-xs text-muted-foreground">
         {total} message{total === 1 ? "" : "s"} with {characterName}
       </p>
-      {messages.map((m) => {
+      {allMessages.map((m) => {
         const isUser = m.role === "user";
         return (
           <div key={m.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>

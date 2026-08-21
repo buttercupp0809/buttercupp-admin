@@ -123,7 +123,7 @@ export default function CharactersPage() {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-sm text-muted-foreground">Status:</span>
-          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
+          <Select value={status} onValueChange={(v) => { if (v) { setStatus(v); setPage(1); } }}>
             <SelectTrigger className="w-[160px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -136,7 +136,7 @@ export default function CharactersPage() {
           </Select>
 
           <span className="text-sm text-muted-foreground">Rating:</span>
-          <Select value={rating} onValueChange={(v) => { setRating(v); setPage(1); }}>
+          <Select value={rating} onValueChange={(v) => { if (v) { setRating(v); setPage(1); } }}>
             <SelectTrigger className="w-[130px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -148,7 +148,7 @@ export default function CharactersPage() {
           </Select>
 
           <span className="text-sm text-muted-foreground">Style:</span>
-          <Select value={style} onValueChange={(v) => { setStyle(v); setPage(1); }}>
+          <Select value={style} onValueChange={(v) => { if (v) { setStyle(v); setPage(1); } }}>
             <SelectTrigger className="w-[140px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
