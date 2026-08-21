@@ -1,6 +1,11 @@
+// Poppy (ButterCupp) database schema — mirrored for admin use.
+// Source of truth: poppy/packages/database/prisma/schema.prisma
+// Admin does NOT run migrations. DDL is owned by the Poppy repo.
+// vector(384) embedding columns are commented out — admin never queries them.
+
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native"]
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
@@ -8,605 +13,594 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =============================================================================
+// Enums
+// =============================================================================
+
+enum SubscriptionTier {
+  free
+  premium
+  pro
+}
+
+enum ContentRating {
+  sfw
+  mature
+}
+
+enum Visibility {
+  private
+  public
+}
+
+enum CharacterStyle {
+  realistic
+  threeD
+  anime
+}
+
+enum ModerationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum MemoryTier {
+  hot
+  warm
+  cold
+}
+
+enum MediaKind {
+  image
+  voice
+  video
+}
+
+enum MediaStatus {
+  queued
+  processing
+  ready
+  failed
+}
+
+enum TokenReason {
+  purchase
+  image_gen
+  voice_gen
+  premium_msg
+  grant
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+enum AgeVerificationLevel {
+  none
+  self_declared
+  vendor_verified
+}
+
+// =============================================================================
+// Users, auth, age & compliance
+// =============================================================================
+
 model User {
-  id                 String    @id @default(uuid())
-  name               String
-  nickname           String?
-  email              String    @unique
-  passwordHash       String?
-  timezone           String    @default("UTC")
-  country            String?
-  dailySchedule      Json?
-  livingSituation    String?
-  emotionalDrains    String[]
-  emotionalComforts  String[]
-  friendPreferences  String?
-  offLimitTopics     String[]
-  telegramChatId     String?   @unique
-  platform           String    @default("telegram")
-  whatsappPhoneId    String?   @unique
-  imessagePhoneId    String?   @unique
-  subscriptionTier   String    @default("free")
-  isPaused           Boolean   @default(false)
-  pauseUntil         DateTime?
-  onboardingStep     Int       @default(0)
-  onboardingComplete Boolean   @default(false)
-  onboardingPath     String    @default("complete")
-  enrichmentComplete Boolean   @default(false)
-  trialEndsAt        DateTime?
-  trialStatus        String    @default("active")
-  trialReminderSentAt      DateTime?
-  trialExpiredNoticeSentAt DateTime?
-  memoryPaused       Boolean   @default(false)
-  arrivalResponse    String?
-  age                Int?
-  dateOfBirth        DateTime?
-  ageVerified        Boolean   @default(false)
-  gender             String? // "male", "female", "non-binary", "prefer-not-to-say"
-  preferredGender    String? // "male", "female", "non-binary", "open-to-all"
+  id                     String               @id @default(uuid())
+  email                  String               @unique
+  passwordHash           String?
+  oauthProvider          String?
+  googleId               String?              @unique
+  dob                    DateTime?
+  jurisdiction           String?
+  subscriptionTier       SubscriptionTier     @default(free)
+  tokenBalance           Int                  @default(0)
+  freeMessagesUsed       Int                  @default(0)
+  ageVerifiedAt          DateTime?
+  ageVerificationLevel   AgeVerificationLevel @default(none)
+  emailVerifiedAt        DateTime?
+  tosAcceptedAt          DateTime?
+  privacyAcceptedAt      DateTime?
+  consentAcceptedAt      DateTime?
+  acceptedPolicyVersion  String?
+  completedOnboardingAt  DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
 
-  fbp             String?
-  fbc             String?
-  lastClientIp    String?
-  lastUserAgent   String?
-  marketingLeadId String?        @unique
-  marketingLead   MarketingLead? @relation("MarketingLeadUser")
-  variantId       String?
-  utmSource       String?
-  utmCampaign     String?
-  utmContent      String?
-
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  // Paywall experimentation attribution (master-prd-21)
-  paywallVariantKey String?
-  paywallRuleKey    String?
-
-  modeWeights              Json?
-  enrichmentQuestionsAsked Json?
-
-  personality        Personality?
-  archetypeAnswers   ArchetypeAnswer?
-  memories           Memory[]
-  events             Event[]
-  messages           Message[]
-  boundary           Boundary?
-  subscription       Subscription?
-  arcs               RelationshipArc[]
-  initiativeLogs     InitiativeLog[]
-  crisisEvents       CrisisEvent[]
-  emotionalPatterns  EmotionalPattern[]
-  conversationChunks ConversationChunk[]
-  usageCounters      UsageCounter[]
-  scheduledPings     ScheduledPing[]
-  persona            UserPersona?
-  memorySummaries    MemorySummary[]
-  emotionalContexts  EmotionalContext[]
-  lastTemplatesUsed  Json?
-  feedback           Feedback[]
+  characters             Character[]           @relation("CharacterOwner")
+  ageVerifications       AgeVerification[]
+  conversations          Conversation[]
+  memories               Memory[]
+  memorySummaries        MemorySummary[]
+  relationshipStates     RelationshipState[]
+  subscription           Subscription?
+  tokenLedger            TokenLedger[]
+  mediaAssets            MediaAsset[]
+  crisisEvents           CrisisEvent[]
+  magicLinks             MagicLink[]
+  reelLikes              ReelLike[]
+  profile                UserProfile?
+  memoryEntities         MemoryEntity[]
+  memoryEdges            MemoryEdge[]
+  userRules              UserRule[]
+  usageCounters          UsageCounter[]
 }
 
-model Personality {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  primaryArchetype    String   @default("the_witness")
-  secondaryArchetype  String?
-  mirrorCeiling       Int      @default(70)
-  archetypeScores     Json?
-  tone                Float    @default(0.5)
-  honesty             Float    @default(0.5)
-  depth               Float    @default(0.5)
-  initiationFrequency Int      @default(2)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Memory {
-  id              String    @id @default(uuid())
-  userId          String
-  type            String
-  content         String
-  importance      String    @default("medium")
-  confidenceScore Float     @default(0.8)
-  source          String    @default("explicit")
-  isPinned        Boolean   @default(false)
-  expiresAt       DateTime?
-  lastAccessedAt  DateTime?
-  accessCount     Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  topic      String?
-  validFrom  DateTime?
-  validUntil DateTime?
-  isArchived Boolean   @default(false)
-  archivedAt DateTime?
-  summaryId  String?
-  // embedding  Unsupported("vector(384)")? — admin doesn't need embeddings
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, type])
-  @@index([userId, importance])
-  @@index([userId, topic])
-  @@index([userId, isArchived])
-}
-
-model Event {
-  id             String    @id @default(uuid())
-  userId         String
-  title          String
-  eventDate      DateTime
-  followUpSent   Boolean   @default(false)
-  followUpSentAt DateTime?
-  importance     String    @default("medium")
-  notes          String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, eventDate])
-}
-
-model Message {
-  id                String    @id @default(uuid())
-  userId            String
-  sender            String
-  content           String
-  messageType       String    @default("text")
-  platform          String    @default("telegram")
-  triggerType       String?
-  telegramMessageId String?
-  responseDelayMs   Int?
-  sentAt            DateTime  @default(now())
-  readAt            DateTime?
-  isCrisisFlagged   Boolean   @default(false)
-  promptVersionId   String?
-  createdAt         DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, sentAt])
-  @@index([userId, sender])
-}
-
-model Boundary {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  dndStart              String   @default("23:00")
-  dndEnd                String   @default("08:00")
-  maxDailyAiMessages    Int      @default(3)
-  sensitiveTopics       String[]
-  followUpEnabled       Boolean  @default(true)
-  voiceNotesEnabled     Boolean  @default(true)
-  textMessagesEnabled   Boolean  @default(true)
-  imageMessagesEnabled  Boolean  @default(true)
-  pingCadence           String   @default("adaptive")
-  preferredCheckinTimes Json?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Subscription {
-  id                   String    @id @default(uuid())
-  userId               String    @unique
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-
-  // Provider-agnostic fields (Dodo / Stripe)
-  provider               String?
-  providerCustomerId     String?
-  providerSubscriptionId String?
-  providerPriceId        String?
-
-  tier            String @default("free")
-  status          String @default("inactive")
-  billingInterval String @default("monthly")
-
-  grandfatheredPriceCents Int?
-
-  // PPP pricing snapshot — captured at checkout
-  purchaseCountry    String?
-  purchasePriceCents Int?
-  purchaseCurrency   String?
-  pppTier            String?
-  pppMultiplier      Float?
-
-  // Paywall experimentation attribution (master-prd-21)
-  paywallVariantKey  String?
-  paywallRuleKey     String?
-  paywallPriceSetKey String?
-
-  startedAt     DateTime?
-  nextBillingAt DateTime?
-  canceledAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model RelationshipArc {
-  id                String   @id @default(uuid())
-  userId            String
-  weekNumber        Int
-  themes            String[]
-  emotionalToneAvg  String?
-  insideJokes       String[]
-  unresolvedThreads String[]
-  totalMessagesSent Int      @default(0)
-  totalAiInitiated  Int      @default(0)
-  responseRate      Float    @default(0)
-  generatedAt       DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, weekNumber])
-}
-
-model InitiativeLog {
-  id                 String    @id @default(uuid())
-  userId             String
-  triggerType        String
-  status             String
-  reason             String?
-  messageId          String?
-  scheduledAt        DateTime
-  executedAt         DateTime?
-  emotionalContextId String?
-  templateId         String?
-  createdAt          DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, scheduledAt])
-  @@index([userId, status])
-}
-
-model CrisisEvent {
-  id             String   @id @default(uuid())
-  userId         String
-  level          Int
-  messageContent String
-  actionTaken    String
-  createdAt      DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([level])
-}
-
-model AnalyticsEvent {
-  id         String   @id @default(uuid())
-  userId     String?
-  eventName  String
-  properties Json?
-  createdAt  DateTime @default(now())
-
-  @@index([eventName])
-  @@index([userId])
-  @@index([createdAt])
-}
-
-model EmotionalPattern {
+model UserProfile {
   id           String   @id @default(uuid())
-  userId       String
-  pattern      String
-  confidence   Float    @default(0.5)
-  occurrences  Int      @default(1)
-  lastSeen     DateTime @default(now())
-  acknowledged Boolean  @default(false)
+  userId       String   @unique
+  displayName  String?
+  gender       String?
+  preferences  Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-  @@unique([userId, pattern])
+model AgeVerification {
+  id           String               @id @default(uuid())
+  userId       String
+  provider     String
+  level        AgeVerificationLevel
+  status       String
+  evidenceRef  String?
+  verifiedAt   DateTime?
+  createdAt    DateTime             @default(now())
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
-model ArchetypeAnswer {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  q3        String?
-  q5        String?
-  q7        String?
-  q8        String?
-  q12       String?
-  q17       String?
-  q18       String?
-  conscious String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model KnowledgeChunk {
-  id          String   @id @default(uuid())
-  category    String
-  subcategory String?
-  content     String
-  source      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  domain         String?
-  author         String?
-  language       String    @default("en")
-  version        Int       @default(1)
-  contentHash    String?
-  tokenCount     Int?
-  accessCount    Int       @default(0)
-  lastAccessedAt DateTime?
-  chunkIndex     Int?
-  totalChunks    Int?
-  metadata       Json?
-  // embedding      Unsupported("vector(384)")? — admin doesn't need embeddings
-  // tsv            Unsupported("tsvector")?     — admin doesn't need full-text search
-
-  @@unique([source, chunkIndex])
-  @@index([category])
-  @@index([domain])
-  @@index([contentHash])
-  @@index([domain, language])
-}
-
-model ConversationChunk {
-  id         String    @id @default(uuid())
-  userId     String
-  content    String
-  topic      String?
-  isArchived Boolean   @default(false)
-  archivedAt DateTime?
-  createdAt  DateTime  @default(now())
-  // embedding  Unsupported("vector(384)")? — admin doesn't need embeddings
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, topic])
-  @@index([userId, isArchived])
-}
-
-model UsageCounter {
-  id          String   @id @default(uuid())
-  userId      String
-  period      String
-  periodStart DateTime
-  llmMessages         Int      @default(0)
-  voiceNotes          Int      @default(0)
-  voiceTranscriptions Int      @default(0)
-  imageGens           Int      @default(0)
-  imageAnalysis       Int      @default(0)
-  aiInitiated         Int      @default(0)
-  updatedAt           DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, period, periodStart])
-  @@index([userId])
-}
-
-model ScheduledPing {
+model MagicLink {
   id          String    @id @default(uuid())
   userId      String
-  scheduledAt DateTime
-  reason      String
-  userHint    String?
-  status      String    @default("pending")
-  firedAt     DateTime?
+  tokenHash   String    @unique
+  purpose     String    @default("login")
+  expiresAt   DateTime
+  consumedAt  DateTime?
   createdAt   DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([status, scheduledAt])
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
-model UserPersona {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  persona     String
-  identity    Json?
-  values      Json?
-  socialGraph Json?
-  emotional   Json?
-  interests   Json?
-  version     Int      @default(1)
-  builtAt     DateTime @default(now())
-  builtFrom   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// =============================================================================
+// Characters + versions + assets
+// =============================================================================
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Character {
+  id                String            @id @default(uuid())
+  ownerUserId       String?
+  name              String
+  age               Int
+  gender            String
+  bio               String
+  tags              String[]
+  style             CharacterStyle
+  contentRating     ContentRating     @default(sfw)
+  visibility        Visibility        @default(private)
+  moderationStatus  ModerationStatus  @default(pending)
+  currentVersionId  String?
+  popularityScore   Float             @default(0)
+  location          String?
+  seedKey           String?           @unique
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  owner             User?             @relation("CharacterOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  versions          CharacterVersion[] @relation("CharacterVersions")
+  currentVersion    CharacterVersion?  @relation("CharacterCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  conversations     Conversation[]
+  media             CharacterMedia[]
+
+  @@index([visibility, moderationStatus])
+  @@index([contentRating])
+  @@index([popularityScore])
+  @@index([ownerUserId])
+}
+
+model CharacterVersion {
+  id                       String            @id @default(uuid())
+  characterId              String
+  versionNo                Int
+  personality              String
+  backstory                String
+  behavioralInstructions   String
+  greeting                 String
+  appearanceSheetId        String?
+  voiceProfileId           String?
+  systemPromptSnapshot     String
+  createdAt                DateTime          @default(now())
+
+  character                Character         @relation("CharacterVersions", fields: [characterId], references: [id], onDelete: Cascade)
+  appearanceSheet          AppearanceSheet?  @relation(fields: [appearanceSheetId], references: [id], onDelete: SetNull)
+  voiceProfile             VoiceProfile?     @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
+  currentOf                Character[]       @relation("CharacterCurrentVersion")
+  conversations            Conversation[]
+
+  @@unique([characterId, versionNo])
+  @@index([characterId])
+}
+
+model AppearanceSheet {
+  id                  String   @id @default(uuid())
+  traits              Json
+  stylePrompt         String
+  negativePrompt      String
+  referenceImageKeys  String[]
+  loraRef             String?
+  createdAt           DateTime @default(now())
+
+  versions            CharacterVersion[]
+}
+
+model VoiceProfile {
+  id          String   @id @default(uuid())
+  provider    String
+  voiceId     String
+  params      Json
+  previewKey  String?
+  createdAt   DateTime @default(now())
+
+  versions    CharacterVersion[]
+}
+
+// =============================================================================
+// Conversations, messages, memory
+// =============================================================================
+
+model Conversation {
+  id                   String            @id @default(uuid())
+  userId               String
+  characterId          String
+  characterVersionId   String
+  lastMessageAt        DateTime?
+  messageCount         Int               @default(0)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character            Character         @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  characterVersion     CharacterVersion  @relation(fields: [characterVersionId], references: [id], onDelete: Restrict)
+  messages             Message[]
+
+  @@unique([userId, characterId])
+  @@index([userId, lastMessageAt])
+  @@index([characterId])
+}
+
+model Message {
+  id              String       @id @default(uuid())
+  conversationId  String
+  role            MessageRole
+  content         String
+  mediaAssetId    String?
+  tokenCost       Int?
+  createdAt       DateTime     @default(now())
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  mediaAsset      MediaAsset?  @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+}
+
+model Memory {
+  id                String     @id @default(uuid())
+  userId            String
+  characterId       String
+  content           String
+  category          String
+  // embedding      Unsupported("vector(384)")? — admin doesn't need embeddings
+  tier              MemoryTier @default(hot)
+  salience          Float      @default(0.5)
+  importance        Float      @default(0.5)
+  confidence        Float      @default(1.0)
+  emotionalValence  Float      @default(0.0)
+  pinned            Boolean    @default(false)
+  accessCount       Int        @default(0)
+  lastAccessedAt    DateTime?
+  validUntil        DateTime?
+  sourceMessageId   String?
+  contentHash       String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, characterId])
+  @@index([userId, characterId, tier])
+  @@index([userId, characterId, sourceMessageId])
+}
+
+model MemoryDeadLetter {
+  id               String   @id @default(uuid())
+  userId           String?
+  characterId      String?
+  sourceMessageId  String?
+  stage            String
+  error            String
+  createdAt        DateTime @default(now())
+
+  @@index([stage, createdAt])
+  @@index([userId, characterId])
 }
 
 model MemorySummary {
   id           String   @id @default(uuid())
   userId       String
-  period       String
+  characterId  String
   periodStart  DateTime
   periodEnd    DateTime
   summary      String
   themes       String[]
-  sentiment    String
+  sentiment    String?
   keyEvents    Json?
-  keyMemories  String[]
-  memoriesUsed Int      @default(0)
+  // embedding  Unsupported("vector(384)")? — admin doesn't need embeddings
   createdAt    DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, period, periodStart])
-  @@index([userId, period])
-  @@index([userId, periodEnd])
+  @@index([userId, characterId])
 }
 
-model EmotionalContext {
-  id                 String    @id @default(uuid())
-  userId             String
-  category           String
-  severity           String
-  phase              String    @default("acute")
-  trigger            String
-  relatedPerson      String?
-  relatedMemoryIds   String[]
-  followUpSchedule   Int[]
-  nextFollowUpAt     DateTime?
-  followUpsSent      Int       @default(0)
-  lastFollowUpAt     DateTime?
-  consecutiveIgnores Int       @default(0)
-  phaseChangedAt     DateTime  @default(now())
-  resolvedAt         DateTime?
-  resolvedReason     String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, phase])
-  @@index([userId, nextFollowUpAt])
-  @@index([phase, nextFollowUpAt])
-}
-
-// Mirrors backend Feedback table (Pellow packages/database/prisma/schema.prisma).
-// Admin reads/triages; admin does NOT manage migrations for this table.
-model Feedback {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  priority String @default("important")
-  category String @default("general")
-
-  subject     String
-  body        String
-  attachments Json?
-
-  rating      Int?
-  ratingLabel String?
-
-  status String @default("new")
-  source String @default("dashboard")
-
-  founderNotified    Boolean   @default(false)
-  founderNotifiedAt  DateTime?
-  userAcknowledged   Boolean   @default(false)
-  userAcknowledgedAt DateTime?
-
-  resolvedAt     DateTime?
-  resolutionNote String?
-
-  isAnonymous Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId, createdAt])
-  @@index([priority, status])
-  @@index([createdAt])
-  @@index([status, founderNotified])
-}
-
-model CheckinTemplate {
-  id          String  @id @default(uuid())
-  category    String
-  subcategory String?
-  phase       String?
-  content     String
-  tone        String  @default("warm")
-  isActive    Boolean @default(true)
-
-  @@index([category, isActive])
-  @@index([category, phase])
-}
-
-// Mirrors backend MarketingLead table (Pellow packages/database/prisma/schema.prisma).
-// DDL is owned by the Vesspr repo migration. Admin only mirrors the schema for its
-// generated client. Do NOT run prisma migrate from this repo.
-model MarketingLead {
-  id              String    @id @default(cuid())
-  source          String    @default("tally")
-  variantId       String?
-  externalRefId   String?   @unique
-  email           String?
-  name            String?
-  phone           String?
-  country         String?
-  age             Int?
-  utmSource       String?
-  utmCampaign     String?
-  utmContent      String?
-  utmMedium       String?
-  utmTerm         String?
-  fbp             String?
-  fbc             String?
-  clientIp        String?
-  clientUserAgent String?
-  payload         Json?
-  userId          String?   @unique
+model RelationshipState {
+  id              String    @id @default(uuid())
+  userId          String
+  characterId     String
+  affectionLevel  Int       @default(0)
+  milestones      String[]
+  mood            String?
   createdAt       DateTime  @default(now())
-  consumedAt      DateTime?
+  updatedAt       DateTime  @updatedAt
 
-  user User? @relation("MarketingLeadUser", fields: [userId], references: [id], onDelete: SetNull)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([variantId])
-  @@index([utmCampaign])
+  @@unique([userId, characterId])
+}
+
+// =============================================================================
+// Billing, tokens, media
+// =============================================================================
+
+model Subscription {
+  id                String            @id @default(uuid())
+  userId            String            @unique
+  provider          String
+  tier              SubscriptionTier  @default(free)
+  plan              String?
+  status            String            @default("inactive")
+  currentPeriodEnd  DateTime?
+  externalId        String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([provider, status])
+}
+
+model WebhookEvent {
+  id         String   @id @default(uuid())
+  provider   String
+  eventId    String
+  eventType  String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@unique([provider, eventId])
   @@index([createdAt])
 }
 
-// Mirrors backend PaywallPriceSet/PaywallVariant/PaywallRule tables (Pellow
-// packages/database/prisma/schema.prisma, master-prd-21). DDL is owned by the
-// Pellow repo migration (Phase 0). Admin only mirrors the schema for its
-// generated client and manages rows via the /paywall UI. Do NOT run prisma
-// migrate from this repo for these models.
-model PaywallPriceSet {
-  id            String    @id @default(uuid())
-  key           String    @unique
-  label         String
-  active        Boolean   @default(true)
-  dodoProducts  Json // { "T0": { "monthly": "prod_...", "annual": "prod_..." }, ... }
-  priceSnapshot Json? // { "T0": { "monthlyCents": 1900, "annualYearlyCents": 14400, "currency": "USD" } }
-  lastValidated DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model PaywallVariant {
+model UsageCounter {
   id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
-  status      String   @default("draft") // draft | active | archived
-  priceSetKey String?
-  content     Json
-  version     Int      @default(1)
+  userId      String
+  counterType String
+  period      String
+  count       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([status])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, counterType, period])
+  @@index([userId])
 }
 
-model PaywallRule {
-  id                 String   @id @default(uuid())
-  key                String   @unique
-  name               String
-  status             String   @default("off") // off | live
-  priority           Int      @default(100)
-  matchCampaigns     String[]
-  matchVariantParams String[]
-  arms               Json // [{ "variantKey": "bf_25off", "weight": 100 }]
-  countryIn          String[]
-  version            Int      @default(1)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+model TokenLedger {
+  id            String       @id @default(uuid())
+  userId        String
+  delta         Int
+  reason        TokenReason
+  balanceAfter  Int
+  refId         String?
+  createdAt     DateTime     @default(now())
 
-  @@index([status, priority])
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model MediaAsset {
+  id            String       @id @default(uuid())
+  userId        String
+  characterId   String?
+  kind          MediaKind
+  s3Key         String?
+  status        MediaStatus  @default(queued)
+  jobId         String?
+  meta          Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([jobId])
+  @@index([characterId, kind])
+  @@index([userId, kind])
+}
+
+// =============================================================================
+// Safety, audit, analytics, flags
+// =============================================================================
+
+model CrisisEvent {
+  id         String   @id @default(uuid())
+  userId     String
+  level      Int
+  trigger    String
+  action     String
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([level])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  actorId    String?
+  action     String
+  resource   String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  userId     String?
+  name       String
+  props      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([name])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model FeatureFlag {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  enabled   Boolean  @default(false)
+  rollout   Int      @default(0)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReelLike {
+  id        String   @id @default(uuid())
+  userId    String
+  reelId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reelId])
+  @@index([reelId])
+}
+
+enum CharacterMediaKind {
+  image
+  video
+}
+
+model CharacterMedia {
+  id          String             @id @default(uuid())
+  characterId String
+  kind        CharacterMediaKind
+  url         String
+  isPrimary   Boolean            @default(false)
+  isDisplay   Boolean            @default(false)
+  isMain      Boolean            @default(false)
+  hidden      Boolean            @default(false)
+  title       String?
+  likesBase   Int                @default(0)
+  sort        Int                @default(0)
+  createdAt   DateTime           @default(now())
+  character   Character          @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, kind])
+  @@index([kind])
+  @@index([characterId, isDisplay])
+  @@index([characterId, isMain])
+  @@index([characterId, hidden])
+}
+
+// =============================================================================
+// Phase 30: memory graph + user rulebook
+// =============================================================================
+
+model MemoryEntity {
+  id             String   @id @default(uuid())
+  userId         String
+  characterId    String
+  kind           String   @default("person")
+  name           String
+  normalizedName String
+  relation       String?
+  sentiment      Float?
+  aliases        String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  edges MemoryEdge[]
+
+  @@unique([userId, characterId, kind, normalizedName])
+  @@index([userId, characterId, kind])
+}
+
+model MemoryEdge {
+  id          String   @id @default(uuid())
+  userId      String
+  characterId String
+  sourceId    String
+  targetId    String?
+  entityId    String?
+  relation    String
+  weight      Float    @default(0.5)
+  label       String?
+  createdBy   String   @default("extraction")
+  createdAt   DateTime @default(now())
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity MemoryEntity? @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId, relation])
+  @@index([userId, characterId, sourceId])
+  @@index([userId, characterId, targetId])
+  @@index([entityId])
+}
+
+model UserRule {
+  id              String   @id @default(uuid())
+  userId          String
+  characterId     String
+  ruleText        String
+  instruction     String
+  sourceMessageId String?
+  status          String   @default("active")
+  timesReinforced Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, characterId, status])
 }

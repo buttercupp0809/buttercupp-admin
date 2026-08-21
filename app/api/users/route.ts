@@ -1,137 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams;
-  const period = sp.get("period") || "weekly";
-  const sort = sp.get("sort") || "score";
-  const order = (sp.get("order") || "desc") as "asc" | "desc";
-  const page = Math.max(1, parseInt(sp.get("page") || "1"));
-  const limit = Math.min(100, Math.max(1, parseInt(sp.get("limit") || "25")));
-  const search = sp.get("search") || "";
-  const view = sp.get("view") || "all";
+  const { searchParams } = req.nextUrl;
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
+  const tier = searchParams.get("tier") ?? "all";
+  const search = searchParams.get("search")?.trim() ?? "";
+  const limit = 25;
 
-  const now = new Date();
-  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const where: Record<string, unknown> = {};
+  if (tier !== "all") where.subscriptionTier = tier;
+  if (search) where.email = { contains: search, mode: "insensitive" };
 
-  let periodStart: Date;
-  switch (period) {
-    case "daily":
-      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      break;
-    case "monthly":
-      periodStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      break;
-    case "quarterly":
-      periodStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      break;
-    default: // weekly
-      periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  }
-
-  const searchWhere = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { email: { contains: search, mode: "insensitive" as const } },
-        ],
-      }
-    : {};
-
-  const viewWhere = (() => {
-    switch (view) {
-      case "onboarding_incomplete":
-        return { onboardingComplete: false };
-      case "trial_active":
-        return { trialEndsAt: { gt: now }, subscriptionTier: "free" };
-      case "trial_expiring":
-        return { trialEndsAt: { gt: now, lte: in7Days }, subscriptionTier: "free" };
-      case "trial_expired":
-        return { trialEndsAt: { not: null, lte: now }, subscriptionTier: "free" };
-      default:
-        return {};
-    }
-  })();
-
-  const where = { ...searchWhere, ...viewWhere };
-
-  const [users, messageCounts, total] = await Promise.all([
+  const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
       select: {
         id: true,
         email: true,
-        name: true,
-        platform: true,
         subscriptionTier: true,
-        country: true,
+        tokenBalance: true,
+        ageVerificationLevel: true,
+        completedOnboardingAt: true,
         createdAt: true,
-        onboardingStep: true,
-        onboardingComplete: true,
-        trialEndsAt: true,
-        trialStatus: true,
       },
-    }),
-    prisma.message.groupBy({
-      by: ["userId"],
-      where: { sender: "user", sentAt: { gte: periodStart } },
-      _count: { _all: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
     }),
     prisma.user.count({ where }),
   ]);
 
-  const scoreMap = new Map(
-    messageCounts.map((m) => [m.userId, m._count._all])
-  );
-
-  let enriched = users.map((u) => ({
-    ...u,
-    createdAt: u.createdAt.toISOString(),
-    trialEndsAt: u.trialEndsAt ? u.trialEndsAt.toISOString() : null,
-    score: scoreMap.get(u.id) || 0,
-    daysLeftInTrial: u.trialEndsAt
-      ? Math.ceil((u.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-      : null,
-  }));
-
-  // Sort
-  enriched.sort((a, b) => {
-    let cmp = 0;
-    switch (sort) {
-      case "score":
-        cmp = a.score - b.score;
-        break;
-      case "name":
-        cmp = (a.name || "").localeCompare(b.name || "");
-        break;
-      case "email":
-        cmp = a.email.localeCompare(b.email);
-        break;
-      case "createdAt":
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        break;
-      case "onboardingStep":
-        cmp = a.onboardingStep - b.onboardingStep;
-        break;
-      case "trialEndsAt":
-        cmp =
-          (a.trialEndsAt ? new Date(a.trialEndsAt).getTime() : Infinity) -
-          (b.trialEndsAt ? new Date(b.trialEndsAt).getTime() : Infinity);
-        break;
-      default:
-        cmp = a.score - b.score;
-    }
-    return order === "desc" ? -cmp : cmp;
-  });
-
-  // Paginate
-  const start = (page - 1) * limit;
-  const paginated = enriched.slice(start, start + limit);
-
-  return NextResponse.json({
-    users: paginated,
-    total,
-    page,
-    limit,
-  });
+  return NextResponse.json({ users, total, page, limit });
 }

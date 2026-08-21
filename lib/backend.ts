@@ -1,11 +1,11 @@
 /**
- * Thin wrapper around the Vesspr backend's internal HTTP API.
+ * Thin wrapper around the Poppy backend's internal HTTP API.
  *
  * The backend gates every internal endpoint with `X-Internal-Secret`. This
  * helper reads the backend base URL and shared secret from env and throws with a
  * clear message if either is missing.
  *
- * Env vars: PELLOW_BASE_URL + INTERNAL_SECRET are the app's canonical names
+ * Env vars: POPPY_BASE_URL + INTERNAL_SECRET are the app's canonical names
  * (already set in .env.local and Vercel). BACKEND_URL / INTERNAL_API_SECRET are
  * accepted as fallbacks so either naming works.
  */
@@ -24,9 +24,9 @@ export interface BackendCallOptions {
 export async function callBackend<T = unknown>(
   opts: BackendCallOptions,
 ): Promise<T> {
-  const url = process.env.PELLOW_BASE_URL || process.env.BACKEND_URL;
+  const url = process.env.POPPY_BASE_URL || process.env.BACKEND_URL;
   const secret = process.env.INTERNAL_SECRET || process.env.INTERNAL_API_SECRET;
-  if (!url) throw new Error("PELLOW_BASE_URL (or BACKEND_URL) is not set");
+  if (!url) throw new Error("POPPY_BASE_URL (or BACKEND_URL) is not set");
   if (!secret)
     throw new Error("INTERNAL_SECRET (or INTERNAL_API_SECRET) is not set");
 

@@ -12,7 +12,7 @@ import {
 import { formatDate } from "@/lib/utils";
 
 interface Props {
-  data: { date: string; dau: number }[];
+  data: { date: string; count: number }[];
 }
 
 function formatTick(value: string) {
@@ -28,7 +28,7 @@ export function ActiveUsersChart({ data }: Props) {
         <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={formatTick} />
         <YAxis tick={{ fontSize: 12 }} />
         <Tooltip labelFormatter={(v) => formatDate(v as string)} />
-        <Bar dataKey="dau" fill="#1D9EFF" name="Daily Active Users" />
+        <Bar dataKey="count" fill="#1D9EFF" name="Daily Active Users" />
       </BarChart>
     </ResponsiveContainer>
   );

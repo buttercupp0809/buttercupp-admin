@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // body is HTML from the rich-text editor. When wrap is false the admin wants a
-    // plain email with no Vesspr branding, so send the HTML as-is.
+    // plain email with no Poppy branding, so send the HTML as-is.
     const html =
       wrap === false ? body : emailShell({ title: subject, bodyHtml: body });
     await sendEmail(to, subject, html);

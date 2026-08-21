@@ -18,15 +18,15 @@ export async function sendEmail(
     return;
   }
 
-  // Default sender is noreply@vesspr.ai. Override with EMAIL_FROM env var if a
+  // Default sender is noreply@poppy.ai. Override with EMAIL_FROM env var if a
   // different verified address is needed. If EMAIL_FROM is a bare address we wrap
   // it; if it already carries a display name ("Name <addr>") we use it verbatim.
   const fromEnv = process.env.EMAIL_FROM?.trim();
   const from = fromEnv
     ? fromEnv.includes("<")
       ? fromEnv
-      : `Vesspr <${fromEnv}>`
-    : "Vesspr <noreply@vesspr.ai>";
+      : `Poppy <${fromEnv}>`
+    : "Poppy <noreply@poppy.ai>";
   const result = await resend.emails.send({ from, to, subject, html });
 
   if (result.error) {
@@ -34,27 +34,24 @@ export async function sendEmail(
   }
 }
 
-// ─── Brand Tokens (from Figma: Vesspr email system) ─────
+// ─── Brand Tokens (Poppy email system) ─────
 // Mirrors frontend/lib/email.ts and backend/src/email/sender.ts so signup, login,
 // and admin-triggered emails share one identity.
 const BRAND = {
-  blue: "#1D9EFF",
-  skyBlue: "#7EC8FF",
-  skyLight: "#D9EEFF",
-  cream: "#FFECDB",
-  // Figma email palette
+  pink: "#FF6B9D",
+  lightPink: "#FFB3CC",
+  cream: "#FFF5F8",
   heading: "#1A1625",
   body: "#33353E",
   footerText: "#1A1625",
   cardBg: "#FFFFFF",
-  pageBg: "#F7F8F9",
-  divider: "#ECECEC",
-  buttonBg: "#000000",
-  buttonText: "#FFFFFE",
-  // legacy aliases still referenced by some templates
+  pageBg: "#FFF5F8",
+  divider: "#FFE0EC",
+  buttonBg: "#FF6B9D",
+  buttonText: "#FFFFFF",
   textDark: "#1A1625",
   textMuted: "#33353E",
-  border: "#ECECEC",
+  border: "#FFE0EC",
 } as const;
 
 const HEADING_FONT =
@@ -63,23 +60,13 @@ const BODY_FONT =
   "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 function appBaseUrl(): string {
-  // Email assets (hero image, social icons) are served ONLY by the app host,
-  // never the marketing apex (vesspr.ai) or www.vesspr.ai. NEXT_PUBLIC_APP_URL
-  // is the single canonical env var for the product URL across every repo
-  // (Pellow frontend/backend, vesspr-admin, vesspr-website); never introduce
-  // an alternate name (e.g. NEXT_PUBLIC_APP_URL) for the same concept.
-  // Mirrors Pellow frontend/lib/email.ts.
-  return process.env.NEXT_PUBLIC_APP_URL || "https://app.vesspr.ai";
+  // Email assets (hero image, social icons) are served ONLY by the app host.
+  // NEXT_PUBLIC_APP_URL is the single canonical env var for the product URL.
+  return process.env.NEXT_PUBLIC_APP_URL || "https://app.poppy.ai";
 }
 
 // Public brand/social handles used in the footer social row.
-const SOCIALS: { slug: string; label: string; url: string }[] = [
-  { slug: "facebook", label: "Facebook", url: "https://www.facebook.com/profile.php?id=61591083915079" },
-  { slug: "x", label: "X", url: "https://x.com/vessprAI" },
-  { slug: "instagram", label: "Instagram", url: "https://www.instagram.com/vesspr.ai" },
-  { slug: "youtube", label: "YouTube", url: "https://www.youtube.com/@VessprAI" },
-  { slug: "linkedin", label: "LinkedIn", url: "https://www.linkedin.com/company/karooli-ai/" },
-];
+const SOCIALS: { slug: string; label: string; url: string }[] = [];
 
 function escapeHtml(s: string): string {
   return s
@@ -134,10 +121,10 @@ export function emailShell(o: EmailShellOpts): string {
   // Marketing: keep the image.
   const header = isTransactional
     ? `<tr><td style="background:${BRAND.cardBg};padding:28px 24px 0;border-radius:20px 20px 0 0;">
-        <span style="font-size:18px;font-weight:700;color:${BRAND.heading};font-family:${HEADING_FONT};">Vesspr</span>
+        <span style="font-size:18px;font-weight:700;color:${BRAND.heading};font-family:${HEADING_FONT};">Poppy</span>
       </td></tr>`
     : `<tr><td style="padding:0;font-size:0;line-height:0;">
-        <img src="${appUrl}/vesspr/${heroFile}" width="600" alt="Vesspr" style="display:block;width:100%;height:auto;border:0;border-radius:20px 20px 0 0;"/>
+        <img src="${appUrl}/poppy/${heroFile}" width="600" alt="Poppy" style="display:block;width:100%;height:auto;border:0;border-radius:20px 20px 0 0;"/>
       </td></tr>`;
 
   const cta =
@@ -147,7 +134,7 @@ export function emailShell(o: EmailShellOpts): string {
         </td></tr></table>`
       : "";
 
-  const footerNote = o.footerNote ?? "You created a Vesspr account with this email.";
+  const footerNote = o.footerNote ?? "You created a Poppy account with this email.";
 
   // Transactional footer: just the account note, no unsubscribe or preferences links.
   // Marketing footer: full social row + unsubscribe + preferences.
@@ -158,7 +145,7 @@ export function emailShell(o: EmailShellOpts): string {
       <tr><td style="background:${BRAND.cardBg};padding:16px 24px 28px;text-align:center;">
         <div style="font-size:13px;line-height:20px;color:${BRAND.footerText};font-family:${BODY_FONT};">
           ${escapeHtml(footerNote)}<br/>
-          <span style="color:#999;">Vesspr &copy; ${new Date().getFullYear()}</span>
+          <span style="color:#999;">Poppy &copy; ${new Date().getFullYear()}</span>
         </div>
       </td></tr>`
     : `<tr><td style="background:${BRAND.cardBg};padding:24px 24px 8px;">
@@ -174,7 +161,7 @@ export function emailShell(o: EmailShellOpts): string {
             <a href="${appUrl}/dashboard/settings" style="color:${BRAND.footerText};text-decoration:underline;">Preferences</a>&nbsp;&nbsp;
             <a href="${appUrl}/unsubscribe" style="color:${BRAND.footerText};text-decoration:underline;">Unsubscribe</a>
           </span><br/>
-          Vesspr &copy; ${new Date().getFullYear()}
+          Poppy &copy; ${new Date().getFullYear()}
         </div>
       </td></tr>`;
 

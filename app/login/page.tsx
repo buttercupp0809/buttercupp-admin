@@ -48,7 +48,7 @@ export default function LoginPage() {
           <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center mb-4">
             <Lock className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">Vesspr Admin</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Poppy Admin</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Sign in to the internal dashboard
           </p>
@@ -65,7 +65,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@vesspr.ai"
+                  placeholder="you@poppy.ai"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-10"

@@ -7,16 +7,16 @@ import {
   Users,
   Mail,
   Server,
-  Trash2,
   LogOut,
   Menu,
-  MessageSquareWarning,
   Flame,
   UserPlus,
-  TrendingUp,
-  Send,
-  RefreshCw,
-  DollarSign,
+  Sparkles,
+  ShieldCheck,
+  Coins,
+  Image,
+  Flag,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,15 +28,15 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/users", label: "Users", icon: Users },
   { href: "/power-users", label: "Power Users", icon: Flame },
-  { href: "/funnel", label: "Funnel", icon: TrendingUp },
-  { href: "/paywall/price-sets", label: "Paywall", icon: DollarSign, activeMatch: "/paywall" },
-  { href: "/meta-capi-test", label: "CAPI Test", icon: Send },
-  { href: "/meta-capi-backfill", label: "CAPI Backfill", icon: RefreshCw },
-  { href: "/feedback", label: "Feedback", icon: MessageSquareWarning },
+  { href: "/characters", label: "Characters", icon: Sparkles },
+  { href: "/moderation", label: "Moderation", icon: ShieldCheck },
+  { href: "/tokens", label: "Tokens", icon: Coins },
+  { href: "/media", label: "Media", icon: Image },
+  { href: "/feature-flags", label: "Feature Flags", icon: Flag },
+  { href: "/crisis-events", label: "Crisis Events", icon: AlertTriangle },
   { href: "/create-user", label: "Create User", icon: UserPlus },
   { href: "/email", label: "Email", icon: Mail },
   { href: "/aws", label: "AWS Costs", icon: Server },
-  { href: "/delete", label: "Delete User", icon: Trash2 },
 ];
 
 function NavContent({ pathname, onLogout }: { pathname: string; onLogout: () => void }) {
@@ -45,10 +45,10 @@ function NavContent({ pathname, onLogout }: { pathname: string; onLogout: () => 
       <div className="px-5 py-5">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">V</span>
+            <span className="text-primary-foreground font-bold text-sm">P</span>
           </div>
           <div>
-            <h1 className="text-sm font-semibold tracking-tight">Vesspr Admin</h1>
+            <h1 className="text-sm font-semibold tracking-tight">Poppy Admin</h1>
             <p className="text-[11px] text-muted-foreground">Internal Portal</p>
           </div>
         </div>
@@ -59,7 +59,7 @@ function NavContent({ pathname, onLogout }: { pathname: string; onLogout: () => 
       <nav className="flex-1 px-3 py-3 space-y-0.5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const active = pathname.startsWith(item.activeMatch ?? item.href);
+          const active = pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

@@ -2,18 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -24,59 +15,18 @@ import {
 } from "@/components/ui/table";
 import { GrowthChart } from "@/components/charts/growth-chart";
 import { ActiveUsersChart } from "@/components/charts/active-users-chart";
-import { MessagesChart } from "@/components/charts/messages-chart";
 import { TierPieChart } from "@/components/charts/tier-pie-chart";
-import { PlatformBarChart } from "@/components/charts/platform-bar-chart";
-import { CountryBarChart } from "@/components/charts/country-bar-chart";
-import { UsageChart } from "@/components/charts/usage-chart";
+import { TokenUsageChart } from "@/components/charts/token-usage-chart";
 import {
   Users,
   MessageSquare,
   Crown,
   Activity,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  AlertTriangle,
-  TrendingUp,
-  Flame,
+  ShieldAlert,
 } from "lucide-react";
 import { formatCountry, formatDate } from "@/lib/utils";
 
 type DateRange = "7" | "30" | "90" | "all";
-
-interface OnboardingStats {
-  total: number;
-  completed: number;
-  inProgress: number;
-  notStarted: number;
-  completionRate: number;
-  dropoffByStep: Array<{ step: number; count: number }>;
-}
-
-interface TrialUser {
-  id: string;
-  name: string;
-  email: string;
-  platform: string;
-  country: string | null;
-  subscriptionTier: string;
-  trialEndsAt: string;
-  trialStatus: string;
-  onboardingComplete: boolean;
-  daysLeft: number;
-}
-
-interface TrialStats {
-  total: number;
-  active: number;
-  expiring3d: number;
-  expiring7d: number;
-  expired: number;
-  converted: number;
-  highEngagementFree: number;
-  urgentUsers: TrialUser[];
-}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -86,104 +36,45 @@ export default function DashboardPage() {
     activeToday: 0,
     messagesToday: 0,
     paidSubscribers: 0,
+    pendingModeration: 0,
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [growth, setGrowth] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [active, setActive] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [messages, setMessages] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tiers, setTiers] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [platforms, setPlatforms] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [countries, setCountries] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [usage, setUsage] = useState<any>(null);
+  const [tokens, setTokens] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [events, setEvents] = useState<any[]>([]);
-  const [onboardingStats, setOnboardingStats] = useState<OnboardingStats | null>(null);
-  const [trialStats, setTrialStats] = useState<TrialStats | null>(null);
-  const [extendTarget, setExtendTarget] = useState<TrialUser | null>(null);
-  const [extendDays, setExtendDays] = useState(7);
-  const [extending, setExtending] = useState(false);
-  const [nudgeTarget, setNudgeTarget] = useState<TrialUser | null>(null);
-  const [sendingNudge, setSendingNudge] = useState(false);
 
   const days = range === "all" ? "365" : range;
 
   const fetchAll = useCallback(async () => {
-    const [s, g, a, m, t, p, c, u, e, ob, tr] = await Promise.all([
+    const [s, g, a, t, c, tk, e] = await Promise.all([
       fetch("/api/analytics/summary").then((r) => r.json()),
       fetch(`/api/analytics/growth?days=${days}`).then((r) => r.json()),
-      fetch("/api/analytics/active").then((r) => r.json()),
-      fetch(`/api/analytics/messages?days=${days}`).then((r) => r.json()),
+      fetch(`/api/analytics/active?days=${days}`).then((r) => r.json()),
       fetch("/api/analytics/tiers").then((r) => r.json()),
-      fetch("/api/analytics/platforms").then((r) => r.json()),
       fetch("/api/analytics/countries").then((r) => r.json()),
-      fetch(`/api/analytics/usage?days=${days}`).then((r) => r.json()),
-      fetch(`/api/analytics/events?days=${days}`).then((r) => r.json()),
-      fetch("/api/analytics/onboarding").then((r) => r.json()),
-      fetch("/api/analytics/trial").then((r) => r.json()),
+      fetch("/api/analytics/tokens").then((r) => r.json()),
+      fetch("/api/analytics/events").then((r) => r.json()),
     ]);
     setSummary(s);
     setGrowth(g);
     setActive(a);
-    setMessages(m);
     setTiers(t);
-    setPlatforms(p);
     setCountries(c);
-    setUsage(u);
+    setTokens(tk);
     setEvents(e);
-    setOnboardingStats(ob);
-    setTrialStats(tr);
   }, [days]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  async function handleExtend() {
-    if (!extendTarget) return;
-    setExtending(true);
-    try {
-      const res = await fetch(`/api/users/${extendTarget.id}/extend-trial`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: extendDays }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Extend failed"); return; }
-      toast.success(`Trial extended by ${extendDays} days for ${extendTarget.name}`);
-      setExtendTarget(null);
-      fetchAll();
-    } catch {
-      toast.error("Failed to extend trial");
-    } finally {
-      setExtending(false);
-    }
-  }
-
-  async function handleSendNudge() {
-    if (!nudgeTarget) return;
-    setSendingNudge(true);
-    try {
-      const res = await fetch(`/api/users/${nudgeTarget.id}/send-nudge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Send failed"); return; }
-      toast.success(`Nudge email sent to ${nudgeTarget.name}`);
-      setNudgeTarget(null);
-    } catch {
-      toast.error("Failed to send nudge email");
-    } finally {
-      setSendingNudge(false);
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -212,7 +103,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <SummaryCard
           title="Total Users"
           value={summary.totalUsers}
@@ -222,6 +113,7 @@ export default function DashboardPage() {
           title="Active Today"
           value={summary.activeToday}
           icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+          subtitle="Conversations updated today"
         />
         <SummaryCard
           title="Messages Today"
@@ -232,6 +124,22 @@ export default function DashboardPage() {
           title="Paid Subscribers"
           value={summary.paidSubscribers}
           icon={<Crown className="h-4 w-4 text-muted-foreground" />}
+        />
+        <SummaryCard
+          title="Pending Moderation"
+          value={summary.pendingModeration}
+          icon={<ShieldAlert className="h-4 w-4 text-muted-foreground" />}
+          subtitle={
+            summary.pendingModeration > 0 ? (
+              <button
+                className="text-xs text-blue-500 hover:underline"
+                onClick={() => router.push("/moderation")}
+              >
+                Review now
+              </button>
+            ) : undefined
+          }
+          urgent={summary.pendingModeration > 0}
         />
       </div>
 
@@ -257,15 +165,6 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Message Volume by Platform</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MessagesChart data={messages} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle className="text-sm">Tier Distribution</CardTitle>
           </CardHeader>
           <CardContent>
@@ -275,33 +174,10 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Platform Distribution</CardTitle>
+            <CardTitle className="text-sm">Token Usage by Reason (30 days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <PlatformBarChart data={platforms} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">
-              Country Distribution
-              <span className="text-muted-foreground font-normal ml-2">
-                ({countries.length} {countries.length === 1 ? "country" : "countries"})
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CountryBarChart data={countries} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Usage Counters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {usage && <UsageChart data={usage} />}
+            <TokenUsageChart data={tokens} />
           </CardContent>
         </Card>
       </div>
@@ -309,7 +185,12 @@ export default function DashboardPage() {
       {/* Country breakdown table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Users by Country</CardTitle>
+          <CardTitle className="text-sm">
+            Users by Country
+            <span className="text-muted-foreground font-normal ml-2">
+              ({countries.length} {countries.length === 1 ? "country" : "countries"})
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -371,9 +252,9 @@ export default function DashboardPage() {
             </TableHeader>
             <TableBody>
               {events.map((e) => (
-                <TableRow key={e.eventName}>
+                <TableRow key={e.name}>
                   <TableCell>
-                    <Badge variant="outline">{e.eventName}</Badge>
+                    <Badge variant="outline">{e.name}</Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {e.count.toLocaleString()}
@@ -383,7 +264,7 @@ export default function DashboardPage() {
               {events.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={2} className="text-center text-muted-foreground">
-                    No events in this period
+                    No events recorded
                   </TableCell>
                 </TableRow>
               )}
@@ -391,329 +272,6 @@ export default function DashboardPage() {
           </Table>
         </CardContent>
       </Card>
-
-      <Separator />
-
-      {/* Section: Onboarding Funnel */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Onboarding Funnel</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Where users are dropping off during sign-up. Incomplete users are the primary nurture target.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard
-            title="Completed Onboarding"
-            value={onboardingStats?.completed ?? 0}
-            icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
-            subtitle={onboardingStats ? `${onboardingStats.completionRate}% completion rate` : undefined}
-          />
-          <SummaryCard
-            title="In Progress"
-            value={onboardingStats?.inProgress ?? 0}
-            icon={<Clock className="h-4 w-4 text-yellow-500" />}
-            subtitle="Started but not finished"
-          />
-          <SummaryCard
-            title="Not Started"
-            value={onboardingStats?.notStarted ?? 0}
-            icon={<XCircle className="h-4 w-4 text-muted-foreground" />}
-            subtitle="Registered, step 0"
-          />
-          <SummaryCard
-            title="Completion Rate"
-            value={onboardingStats?.completionRate ?? 0}
-            icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
-            suffix="%"
-            subtitle={`${onboardingStats?.total ?? 0} total users`}
-          />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Drop-off by Onboarding Step</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Step</TableHead>
-                  <TableHead className="text-right">Users Stuck</TableHead>
-                  <TableHead className="text-right">% of Incomplete</TableHead>
-                  <TableHead className="text-right">% of All Users</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {onboardingStats && onboardingStats.dropoffByStep.length > 0 ? (
-                  (() => {
-                    const incompleteTotal = onboardingStats.inProgress + onboardingStats.notStarted;
-                    return onboardingStats.dropoffByStep.map((row) => (
-                      <TableRow key={row.step}>
-                        <TableCell>
-                          <Badge variant={row.step === 0 ? "secondary" : "outline"}>
-                            {row.step === 0 ? "Step 0 — Not started" : `Step ${row.step}`}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {row.count.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {incompleteTotal > 0
-                            ? ((row.count / incompleteTotal) * 100).toFixed(1)
-                            : "0.0"}%
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {onboardingStats.total > 0
-                            ? ((row.count / onboardingStats.total) * 100).toFixed(1)
-                            : "0.0"}%
-                        </TableCell>
-                      </TableRow>
-                    ));
-                  })()
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                      {onboardingStats ? "All users have completed onboarding" : "Loading..."}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Separator />
-
-      {/* Section: Free Trial Pipeline */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Free Trial Pipeline</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Monitor trial urgency and identify high-priority users to convert before trials expire.
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <SummaryCard
-            title="Active Trials"
-            value={trialStats?.active ?? 0}
-            icon={<Activity className="h-4 w-4 text-blue-500" />}
-          />
-          <SummaryCard
-            title="Expiring in 3 Days"
-            value={trialStats?.expiring3d ?? 0}
-            icon={<Flame className="h-4 w-4 text-red-500" />}
-            urgent={!!trialStats?.expiring3d}
-          />
-          <SummaryCard
-            title="Expiring in 7 Days"
-            value={trialStats?.expiring7d ?? 0}
-            icon={<AlertTriangle className="h-4 w-4 text-yellow-500" />}
-          />
-          <SummaryCard
-            title="Trial Expired"
-            value={trialStats?.expired ?? 0}
-            icon={<XCircle className="h-4 w-4 text-destructive" />}
-            subtitle="Not converted"
-          />
-          <SummaryCard
-            title="Converted to Paid"
-            value={trialStats?.converted ?? 0}
-            icon={<Crown className="h-4 w-4 text-green-500" />}
-          />
-          <SummaryCard
-            title="High Engagement Free"
-            value={trialStats?.highEngagementFree ?? 0}
-            icon={<TrendingUp className="h-4 w-4 text-purple-500" />}
-            subtitle=">5 msgs this week, still free"
-          />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">
-              Urgent Action Required
-              <span className="text-muted-foreground font-normal ml-2">
-                Expiring soon or recently expired
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>Onboarding</TableHead>
-                  <TableHead className="text-right">Trial Ends</TableHead>
-                  <TableHead className="text-right">Days Left</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {trialStats && trialStats.urgentUsers.length > 0 ? (
-                  trialStats.urgentUsers.map((u) => (
-                    <TableRow
-                      key={u.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => router.push(`/users/${u.id}`)}
-                    >
-                      <TableCell>
-                        <div className="font-medium text-sm">{u.name}</div>
-                        <div className="text-xs text-muted-foreground">{u.email}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{u.platform}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {u.country ? formatCountry(u.country) : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        {u.onboardingComplete ? (
-                          <Badge variant="default" className="text-xs">Done</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">Incomplete</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {formatDate(u.trialEndsAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {u.daysLeft > 0 ? (
-                          <Badge
-                            variant={u.daysLeft <= 3 ? "destructive" : "secondary"}
-                            className="text-xs"
-                          >
-                            {u.daysLeft}d left
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="text-xs">
-                            Expired {Math.abs(u.daysLeft)}d ago
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell
-                        className="text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs px-2"
-                            onClick={(e) => { e.stopPropagation(); setExtendDays(7); setExtendTarget(u); }}
-                          >
-                            Extend
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs px-2"
-                            onClick={(e) => { e.stopPropagation(); setNudgeTarget(u); }}
-                          >
-                            Nudge
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
-                      {trialStats ? "No urgent trials right now" : "Loading..."}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Extend Trial Dialog */}
-      <Dialog open={!!extendTarget} onOpenChange={(open) => !open && setExtendTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Extend Trial</DialogTitle>
-          </DialogHeader>
-          {extendTarget && (
-            <div className="space-y-4 mt-2">
-              <p className="text-sm text-muted-foreground">
-                Extending trial for <strong>{extendTarget.name}</strong> ({extendTarget.email})
-              </p>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Add days:</p>
-                <div className="flex gap-2">
-                  {([3, 7, 14, 30] as const).map((d) => (
-                    <Button
-                      key={d}
-                      variant={extendDays === d ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setExtendDays(d)}
-                    >
-                      +{d}d
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-md bg-muted px-3 py-2 text-sm">
-                {extendTarget.daysLeft > 0
-                  ? `Current end + ${extendDays} more days`
-                  : `Starts from today + ${extendDays} days`}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setExtendTarget(null)}>
-              Cancel
-            </Button>
-            <Button disabled={extending} onClick={handleExtend}>
-              {extending ? "Extending…" : `Add ${extendDays} Days`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send Nudge Confirm Dialog */}
-      <Dialog open={!!nudgeTarget} onOpenChange={(open) => !open && setNudgeTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Send Nudge Email</DialogTitle>
-          </DialogHeader>
-          {nudgeTarget && (
-            <div className="space-y-3 mt-2 text-sm">
-              <p className="text-muted-foreground">
-                Sending to <strong>{nudgeTarget.name}</strong> ({nudgeTarget.email})
-              </p>
-              <div className="rounded-md border bg-muted/30 p-3 space-y-1">
-                <p>
-                  <span className="text-muted-foreground">Template: </span>
-                  <Badge variant="outline" className="text-xs">
-                    {nudgeTarget.daysLeft > 0 ? `Expiring soon (${nudgeTarget.daysLeft}d left)` : "Re-engagement (expired)"}
-                  </Badge>
-                </p>
-                <p className="text-xs text-muted-foreground pt-1">
-                  {nudgeTarget.daysLeft > 0
-                    ? `"There's something I've been wanting to say..." — warm, personal email encouraging them to continue before their trial ends.`
-                    : `"I've been thinking about you..." — gentle re-engagement email inviting them to come back.`}
-                </p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNudgeTarget(null)}>
-              Cancel
-            </Button>
-            <Button disabled={sendingNudge} onClick={handleSendNudge}>
-              {sendingNudge ? "Sending…" : "Send Nudge Email"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -729,7 +287,7 @@ function SummaryCard({
   title: string;
   value: number;
   icon: React.ReactNode;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   suffix?: string;
   urgent?: boolean;
 }) {

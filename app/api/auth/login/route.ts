@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   const token = await signAdminToken(email.toLowerCase());
   const res = NextResponse.json({ success: true, email });
-  res.cookies.set("vesspr-admin-token", token, {
+  res.cookies.set("poppy-admin-token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

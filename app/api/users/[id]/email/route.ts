@@ -12,7 +12,7 @@ export async function POST(
 
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { email: true, name: true },
+    select: { email: true },
   });
 
   if (!user) {
@@ -33,13 +33,13 @@ export async function POST(
         .setIssuedAt()
         .sign(secret);
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.vesspr.ai";
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.poppy.ai";
       const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
       const html = emailShell({
         title: "Reset your password",
         bodyHtml: `
-          <p>Hey ${user.name}, we received a request to reset your password. Click the button below to set a new one.</p>
+          <p>Hey ${user.email}, we received a request to reset your password. Click the button below to set a new one.</p>
           <p style="font-size:13px;color:#475569;margin-top:16px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
         `,
         ctaText: "Reset password",

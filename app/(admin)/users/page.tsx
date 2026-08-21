@@ -20,45 +20,45 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown } from "lucide-react";
-import { formatDate, formatCountry } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
-type Period = "daily" | "weekly" | "monthly" | "quarterly";
-type View = "all" | "onboarding_incomplete" | "trial_active" | "trial_expiring" | "trial_expired";
+type Tier = "all" | "free" | "premium" | "pro";
 
 interface UserRow {
   id: string;
   email: string;
-  name: string;
-  platform: string;
   subscriptionTier: string;
-  country: string | null;
+  tokenBalance: number;
+  ageVerificationLevel: string;
+  completedOnboardingAt: string | null;
   createdAt: string;
-  score: number;
-  onboardingStep: number;
-  onboardingComplete: boolean;
-  trialEndsAt: string | null;
-  trialStatus: string;
-  daysLeftInTrial: number | null;
 }
 
-const VIEW_LABELS: Record<View, string> = {
-  all: "All Users",
-  onboarding_incomplete: "Onboarding Incomplete",
-  trial_active: "Trial Active",
-  trial_expiring: "Trial Expiring (7d)",
-  trial_expired: "Trial Expired",
-};
+const TIER_OPTIONS: { value: Tier; label: string }[] = [
+  { value: "all", label: "All Tiers" },
+  { value: "free", label: "Free" },
+  { value: "premium", label: "Premium" },
+  { value: "pro", label: "Pro" },
+];
+
+function tierVariant(tier: string): "secondary" | "default" | "outline" {
+  if (tier === "free") return "secondary";
+  if (tier === "pro") return "default";
+  return "outline";
+}
+
+function ageVerifVariant(level: string): "secondary" | "default" | "outline" {
+  if (level === "vendor_verified") return "default";
+  if (level === "self_declared") return "outline";
+  return "secondary";
+}
 
 export default function UsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("weekly");
-  const [view, setView] = useState<View>("all");
-  const [sort, setSort] = useState("createdAt");
-  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [tier, setTier] = useState<Tier>("all");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -67,12 +67,8 @@ export default function UsersPage() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({
-      period,
-      view,
-      sort,
-      order,
       page: page.toString(),
-      limit: limit.toString(),
+      tier,
       ...(search && { search }),
     });
     const res = await fetch(`/api/users?${params}`);
@@ -80,7 +76,7 @@ export default function UsersPage() {
     setUsers(data.users);
     setTotal(data.total);
     setLoading(false);
-  }, [period, view, sort, order, page, search]);
+  }, [page, tier, search]);
 
   useEffect(() => {
     fetchUsers();
@@ -94,17 +90,8 @@ export default function UsersPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  function toggleSort(col: string) {
-    if (sort === col) {
-      setOrder(order === "desc" ? "asc" : "desc");
-    } else {
-      setSort(col);
-      setOrder("desc");
-    }
-  }
-
-  function handleViewChange(v: string) {
-    setView(v as View);
+  function handleTierChange(v: string) {
+    setTier(v as Tier);
     setPage(1);
   }
 
@@ -115,104 +102,56 @@ export default function UsersPage() {
       <div>
         <h1 className="text-2xl font-bold">Users</h1>
         <p className="text-muted-foreground mt-1">
-          Engagement scores based on user messages
+          {total.toLocaleString()} users total
         </p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="flex flex-wrap gap-1">
-            {(["daily", "weekly", "monthly", "quarterly"] as Period[]).map((p) => (
-              <Button
-                key={p}
-                variant={period === p ? "default" : "outline"}
-                size="sm"
-                onClick={() => { setPeriod(p); setPage(1); }}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </Button>
-            ))}
-          </div>
-          <Input
-            placeholder="Search by name or email…"
-            className="max-w-xs"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
-        </div>
-
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Segment:</span>
-          <Select value={view} onValueChange={(v) => v && handleViewChange(v)}>
-            <SelectTrigger className="w-[220px] h-8 text-sm">
+          <span className="text-sm text-muted-foreground">Tier:</span>
+          <Select value={tier} onValueChange={(v) => v && handleTierChange(v)}>
+            <SelectTrigger className="w-[160px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(VIEW_LABELS) as View[]).map((v) => (
-                <SelectItem key={v} value={v}>
-                  {VIEW_LABELS[v]}
+              {TIER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {view !== "all" && (
-            <span className="text-sm text-muted-foreground">
-              {total.toLocaleString()} users
-            </span>
-          )}
         </div>
+        <Input
+          placeholder="Search by email..."
+          className="max-w-xs"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">ID</TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("email")} className="flex items-center gap-1 font-medium">
-                  Email <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("name")} className="flex items-center gap-1 font-medium">
-                  Name <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
-              <TableHead>Platform</TableHead>
-              <TableHead>Country</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Tier</TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("onboardingStep")} className="flex items-center gap-1 font-medium">
-                  Onboarding <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("trialEndsAt")} className="flex items-center gap-1 font-medium">
-                  Trial <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("score")} className="flex items-center gap-1 font-medium">
-                  Score <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("createdAt")} className="flex items-center gap-1 font-medium">
-                  Created <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
+              <TableHead className="text-right">Token Balance</TableHead>
+              <TableHead>Age Verification</TableHead>
+              <TableHead>Onboarding</TableHead>
+              <TableHead className="text-right">Created</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                  Loading…
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  Loading...
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -223,44 +162,32 @@ export default function UsersPage() {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => router.push(`/users/${user.id}`)}
                 >
-                  <TableCell className="font-mono text-xs">
-                    {user.id.slice(0, 8)}
-                  </TableCell>
-                  <TableCell className="text-sm">{user.email}</TableCell>
-                  <TableCell className="text-sm">{user.name}</TableCell>
+                  <TableCell className="text-sm font-medium">{user.email}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs">{user.platform}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {user.country ? (
-                      <span title={user.country}>{formatCountry(user.country)}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.subscriptionTier === "free" ? "secondary" : "default"} className="text-xs">
+                    <Badge variant={tierVariant(user.subscriptionTier)} className="text-xs capitalize">
                       {user.subscriptionTier}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {user.tokenBalance.toLocaleString()}
+                  </TableCell>
                   <TableCell>
-                    {user.onboardingComplete ? (
-                      <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-600">Done</Badge>
-                    ) : user.onboardingStep > 0 ? (
-                      <Badge variant="secondary" className="text-xs">Step {user.onboardingStep}</Badge>
+                    <Badge variant={ageVerifVariant(user.ageVerificationLevel)} className="text-xs">
+                      {user.ageVerificationLevel.replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.completedOnboardingAt ? (
+                      <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-600">
+                        Complete
+                      </Badge>
                     ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
+                      <Badge variant="secondary" className="text-xs">
+                        Incomplete
+                      </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <TrialBadge
-                      trialEndsAt={user.trialEndsAt}
-                      daysLeft={user.daysLeftInTrial}
-                      subscriptionTier={user.subscriptionTier}
-                    />
-                  </TableCell>
-                  <TableCell className="font-semibold">{user.score}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  <TableCell className="text-right text-muted-foreground text-sm">
                     {formatDate(user.createdAt)}
                   </TableCell>
                 </TableRow>
@@ -273,7 +200,7 @@ export default function UsersPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
+            Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total.toLocaleString()}
           </p>
           <div className="flex gap-2">
             <Button
@@ -297,33 +224,4 @@ export default function UsersPage() {
       )}
     </div>
   );
-}
-
-function TrialBadge({
-  trialEndsAt,
-  daysLeft,
-  subscriptionTier,
-}: {
-  trialEndsAt: string | null;
-  daysLeft: number | null;
-  subscriptionTier: string;
-}) {
-  if (!trialEndsAt) return <span className="text-muted-foreground text-xs">—</span>;
-
-  if (subscriptionTier !== "free") {
-    return <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-600">Converted</Badge>;
-  }
-
-  if (daysLeft !== null && daysLeft > 0) {
-    return (
-      <Badge
-        variant={daysLeft <= 3 ? "destructive" : "secondary"}
-        className="text-xs"
-      >
-        {daysLeft}d left
-      </Badge>
-    );
-  }
-
-  return <Badge variant="destructive" className="text-xs">Expired</Badge>;
 }

@@ -11,23 +11,27 @@ export async function GET(
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
-        personality: true,
-        archetypeAnswers: true,
-        memories: { take: 50, orderBy: { createdAt: "desc" } },
-        events: { take: 50, orderBy: { eventDate: "desc" } },
-        messages: { take: 100, orderBy: { sentAt: "desc" } },
-        boundary: true,
+        conversations: {
+          include: {
+            character: {
+              select: {
+                id: true,
+                name: true,
+                style: true,
+                contentRating: true,
+                moderationStatus: true,
+              },
+            },
+            messages: { take: 3, orderBy: { createdAt: "desc" } },
+          },
+          orderBy: { lastMessageAt: "desc" },
+        },
+        memories: { orderBy: { createdAt: "desc" }, take: 50 },
         subscription: true,
-        arcs: { orderBy: { weekNumber: "desc" }, take: 10 },
-        initiativeLogs: { take: 50, orderBy: { createdAt: "desc" } },
-        crisisEvents: { orderBy: { createdAt: "desc" } },
-        emotionalPatterns: true,
-        conversationChunks: { take: 20, orderBy: { createdAt: "desc" } },
-        usageCounters: { orderBy: { periodStart: "desc" }, take: 12 },
-        scheduledPings: { orderBy: { scheduledAt: "desc" }, take: 20 },
-        persona: true,
-        memorySummaries: { orderBy: { periodEnd: "desc" }, take: 10 },
-        emotionalContexts: { orderBy: { createdAt: "desc" }, take: 20 },
+        tokenLedger: { orderBy: { createdAt: "desc" }, take: 100 },
+        usageCounters: { orderBy: { period: "desc" }, take: 24 },
+        crisisEvents: { orderBy: { createdAt: "desc" }, take: 20 },
+        relationshipStates: true,
       },
     });
 

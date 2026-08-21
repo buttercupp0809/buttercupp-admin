@@ -16,8 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vesspr Admin",
-  description: "Internal admin portal for Vesspr",
+  title: "Poppy Admin",
+  description: "Internal admin portal for Poppy",
 };
 
 export default function RootLayout({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, KeyRound, Trash2, MessageCircle, Send, Cake, Video, Timer, Sparkles, Download } from "lucide-react";
-import { formatDate, formatDateTime, formatCountry } from "@/lib/utils";
+import { ArrowLeft, Mail, Trash2, Coins, ChevronRight } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type UserDetail = any;
@@ -34,31 +34,17 @@ export default function UserDetailPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserDetail>(null);
   const [loading, setLoading] = useState(true);
+
+  // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [shiftOpen, setShiftOpen] = useState(false);
-  const [shiftConfirmEmail, setShiftConfirmEmail] = useState("");
-  const [shiftSendEmail, setShiftSendEmail] = useState(true);
-  const [shifting, setShifting] = useState(false);
-  const [msgOpen, setMsgOpen] = useState(false);
-  const [msgMode, setMsgMode] = useState<"raw" | "llm">("llm");
-  const [msgText, setMsgText] = useState("");
-  const [msgPrompt, setMsgPrompt] = useState("");
-  const [sendingMsg, setSendingMsg] = useState(false);
-  const [birthdayOpen, setBirthdayOpen] = useState(false);
-  const [birthdayForce, setBirthdayForce] = useState(false);
-  const [sendingBirthday, setSendingBirthday] = useState(false);
-  const [trialOpen, setTrialOpen] = useState(false);
-  const [extendDays, setExtendDays] = useState(7);
-  const [extendingTrial, setExtendingTrial] = useState(false);
-  const [nudgeOpen, setNudgeOpen] = useState(false);
-  const [nudgeTemplate, setNudgeTemplate] = useState<string>("");
-  const [nudgeDaysLeft, setNudgeDaysLeft] = useState<number | null>(null);
-  const [nudgeSubject, setNudgeSubject] = useState("");
-  const [nudgeBody, setNudgeBody] = useState("");
-  const [nudgeCtaText, setNudgeCtaText] = useState("");
-  const [sendingNudge, setSendingNudge] = useState(false);
+
+  // Issue token grant dialog
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const [tokenAmount, setTokenAmount] = useState("");
+  const [tokenNote, setTokenNote] = useState("");
+  const [issuingTokens, setIssuingTokens] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -105,177 +91,40 @@ export default function UserDetailPage() {
     setDeleting(false);
   }
 
-  async function handleSendMessage() {
-    if (msgMode === "raw" && !msgText.trim()) {
-      toast.error("Text is empty");
+  async function handleIssueTokens() {
+    const amount = parseInt(tokenAmount, 10);
+    if (!amount || amount <= 0) {
+      toast.error("Enter a valid positive number of tokens");
       return;
     }
-    if (msgMode === "llm" && !msgPrompt.trim()) {
-      toast.error("Prompt is empty");
-      return;
-    }
-    setSendingMsg(true);
+    setIssuingTokens(true);
     try {
-      const res = await fetch(`/api/users/${id}/send-message`, {
+      const res = await fetch(`/api/users/${id}/issue-tokens`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: msgMode,
-          text: msgMode === "raw" ? msgText : undefined,
-          prompt: msgMode === "llm" ? msgPrompt : undefined,
-        }),
+        body: JSON.stringify({ amount, note: tokenNote || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Send failed");
+        toast.error(data.error || "Failed to issue tokens");
         return;
       }
-      toast.success(`Sent via ${data.platform}: ${data.text.slice(0, 60)}${data.text.length > 60 ? "…" : ""}`);
-      setMsgOpen(false);
-      setMsgText("");
-      setMsgPrompt("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Send failed");
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function handleSendBirthday() {
-    setSendingBirthday(true);
-    try {
-      const res = await fetch(`/api/users/${id}/send-birthday`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ force: birthdayForce }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Birthday send failed");
-        return;
-      }
-      if (!data.sent) {
-        toast.info(`Skipped: ${data.reason}`);
-      } else {
-        toast.success(
-          `Birthday sent via ${data.result?.platform}: ${data.result?.text.slice(0, 60)}${data.result?.text.length > 60 ? "…" : ""}`
-        );
-      }
-      setBirthdayOpen(false);
-      setBirthdayForce(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Birthday send failed");
-    } finally {
-      setSendingBirthday(false);
-    }
-  }
-
-  async function handleShiftToWhatsapp() {
-    setShifting(true);
-    try {
-      const res = await fetch(`/api/users/${id}/shift-to-whatsapp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          confirmEmail: shiftConfirmEmail,
-          sendEmail: shiftSendEmail,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Shift failed");
-        return;
-      }
-      if (data.alreadyOnWhatsapp) {
-        toast.info("Already on WhatsApp, no changes");
-      } else if (data.emailSent) {
-        toast.success("Shifted to WhatsApp, email sent");
-      } else if (data.emailError) {
-        toast.warning(`Shifted, but email failed: ${data.emailError}`);
-      } else {
-        toast.success("Shifted to WhatsApp (no email sent)");
-      }
-      setShiftOpen(false);
-      setShiftConfirmEmail("");
+      toast.success(`Granted ${amount} tokens. New balance: ${data.newBalance}`);
       setUser((prev: UserDetail) =>
-        prev ? { ...prev, ...data.user } : prev
+        prev ? { ...prev, tokenBalance: data.newBalance } : prev
       );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Shift failed");
-    } finally {
-      setShifting(false);
-    }
-  }
-
-  async function handleExtendTrial() {
-    setExtendingTrial(true);
-    try {
-      const res = await fetch(`/api/users/${id}/extend-trial`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: extendDays }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Extend failed"); return; }
-      toast.success(`Trial extended by ${extendDays} days`);
-      setUser((prev: UserDetail) =>
-        prev ? { ...prev, trialEndsAt: data.trialEndsAt, trialStatus: data.trialStatus } : prev
-      );
-      setTrialOpen(false);
+      setTokenOpen(false);
+      setTokenAmount("");
+      setTokenNote("");
     } catch {
-      toast.error("Failed to extend trial");
+      toast.error("Failed to issue tokens");
     } finally {
-      setExtendingTrial(false);
-    }
-  }
-
-  async function openNudgeDialog() {
-    setNudgeSubject("");
-    setNudgeBody("");
-    setNudgeCtaText("");
-    setNudgeTemplate("");
-    setNudgeDaysLeft(null);
-    setNudgeOpen(true);
-    try {
-      const res = await fetch(`/api/users/${id}/send-nudge`);
-      const data = await res.json();
-      if (res.ok) {
-        setNudgeSubject(data.subject ?? "");
-        setNudgeBody(data.body ?? "");
-        setNudgeCtaText(data.ctaText ?? "");
-        setNudgeTemplate(data.template ?? "");
-        setNudgeDaysLeft(data.daysLeft ?? null);
-      }
-    } catch {
-      // defaults load failed, admin can still type manually
-    }
-  }
-
-  async function handleSendNudge() {
-    setSendingNudge(true);
-    try {
-      const res = await fetch(`/api/users/${id}/send-nudge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: nudgeSubject || undefined,
-          body: nudgeBody || undefined,
-          ctaText: nudgeCtaText || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Send failed"); return; }
-      toast.success(`Nudge email sent (${data.template === "expired" ? "re-engagement" : "expiring soon"} template)`);
-      setNudgeOpen(false);
-    } catch {
-      toast.error("Failed to send nudge email");
-    } finally {
-      setSendingNudge(false);
+      setIssuingTokens(false);
     }
   }
 
   if (loading) {
-    return <div className="text-center py-12 text-muted-foreground">Loading user…</div>;
+    return <div className="text-center py-12 text-muted-foreground">Loading user...</div>;
   }
 
   if (!user) return null;
@@ -290,132 +139,25 @@ export default function UserDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-xl">{user.name}</CardTitle>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+            <CardTitle className="text-xl">{user.email}</CardTitle>
+            <p className="text-sm text-muted-foreground">ID: {user.id}</p>
           </div>
-          <div className="flex gap-2">
-            <Badge variant="outline">{user.platform}</Badge>
-            <Badge>{user.subscriptionTier}</Badge>
+          <div className="flex gap-2 flex-wrap">
+            <Badge variant="outline">{user.subscriptionTier}</Badge>
+            <Badge variant="secondary">{user.ageVerificationLevel}</Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-4 text-sm">
+          <div className="flex flex-wrap gap-4 text-sm mb-4">
+            <span>Token Balance: <strong>{user.tokenBalance ?? 0}</strong></span>
             <span>Created: {formatDate(user.createdAt)}</span>
-            <span>Timezone: {user.timezone}</span>
-            {user.age && <span>Age: {user.age}</span>}
-            {user.gender && <span>Gender: {user.gender}</span>}
           </div>
-          <div className="flex flex-wrap gap-2 mt-4">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => router.push(`/email?to=${user.email}`)}>
               <Mail className="h-4 w-4 mr-1" /> Send Email
             </Button>
-            <Button size="sm" variant="outline">
-              <KeyRound className="h-4 w-4 mr-1" /> Password Reset
-            </Button>
-            {process.env.NEXT_PUBLIC_POSTHOG_KEY && process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const projectId = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID;
-                  const filters = encodeURIComponent(
-                    JSON.stringify({
-                      date_from: "-90d",
-                      filter_group: {
-                        type: "AND",
-                        values: [
-                          {
-                            type: "AND",
-                            values: [
-                              {
-                                type: "recording",
-                                key: "first_url",
-                                value: "app.vesspr.ai",
-                                operator: "icontains",
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                      properties: [
-                        { key: "email", value: [user.email], operator: "exact", type: "person" },
-                      ],
-                    }),
-                  );
-                  window.open(
-                    `https://us.posthog.com/project/${projectId}/replay/home?filters=${filters}`,
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
-                }}
-              >
-                <Video className="h-4 w-4 mr-1" /> PostHog Recordings
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={() => setMsgOpen(true)}>
-              <Send className="h-4 w-4 mr-1" /> Send Message
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setTrialOpen(true)}
-            >
-              <Timer className="h-4 w-4 mr-1" /> Extend Trial
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={user.subscriptionTier !== "free"}
-              title={
-                user.subscriptionTier !== "free"
-                  ? "User is already a paid subscriber"
-                  : "Send an emotional nudge email to encourage upgrading"
-              }
-              onClick={openNudgeDialog}
-            >
-              <Sparkles className="h-4 w-4 mr-1" /> Send Nudge
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setBirthdayOpen(true)}
-              disabled={!user.dateOfBirth}
-              title={
-                user.dateOfBirth
-                  ? "Send a personalized birthday message crafted from their memories"
-                  : "No date of birth on file"
-              }
-            >
-              <Cake className="h-4 w-4 mr-1" /> Send Birthday
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShiftOpen(true)}
-              disabled={user.platform === "whatsapp"}
-              title={
-                user.platform === "whatsapp"
-                  ? user.whatsappPhoneId
-                    ? "Already on WhatsApp"
-                    : "Shifted to WhatsApp, awaiting re-pair"
-                  : "Move this user from Telegram to WhatsApp"
-              }
-            >
-              <MessageCircle className="h-4 w-4 mr-1" /> Shift to WhatsApp
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const a = document.createElement("a");
-                a.href = `/api/users/${id}/download-chats`;
-                a.download = "";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-              }}
-            >
-              <Download className="h-4 w-4 mr-1" /> Download Chats
+            <Button size="sm" variant="outline" onClick={() => setTokenOpen(true)}>
+              <Coins className="h-4 w-4 mr-1" /> Issue Token Grant
             </Button>
             <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-1" /> Delete User
@@ -428,42 +170,30 @@ export default function UserDetailPage() {
       <Tabs defaultValue="profile">
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="conversations">Conversations</TabsTrigger>
           <TabsTrigger value="memories">Memories</TabsTrigger>
-          <TabsTrigger value="events">Events</TabsTrigger>
-          <TabsTrigger value="emotional">Emotional</TabsTrigger>
-          <TabsTrigger value="subscription">Subscription</TabsTrigger>
-          <TabsTrigger value="relationship">Relationship</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
+          <TabsTrigger value="subscription">Subscription + Tokens</TabsTrigger>
+          <TabsTrigger value="crisis">Crisis Events</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="space-y-4 mt-4">
+        <TabsContent value="profile" className="mt-4">
           <ProfileTab user={user} />
         </TabsContent>
-        <TabsContent value="messages" className="mt-4">
-          <MessagesTab messages={user.messages} />
+        <TabsContent value="conversations" className="mt-4">
+          <ConversationsTab conversations={user.conversations} router={router} />
         </TabsContent>
         <TabsContent value="memories" className="mt-4">
           <MemoriesTab memories={user.memories} />
         </TabsContent>
-        <TabsContent value="events" className="mt-4">
-          <EventsTab events={user.events} />
-        </TabsContent>
-        <TabsContent value="emotional" className="mt-4">
-          <EmotionalTab
-            patterns={user.emotionalPatterns}
-            contexts={user.emotionalContexts}
-            crises={user.crisisEvents}
+        <TabsContent value="subscription" className="mt-4">
+          <SubscriptionTab
+            subscription={user.subscription}
+            tokenLedger={user.tokenLedger}
+            usageCounters={user.usageCounters}
           />
         </TabsContent>
-        <TabsContent value="subscription" className="mt-4">
-          <SubscriptionTab subscription={user.subscription} usage={user.usageCounters} />
-        </TabsContent>
-        <TabsContent value="relationship" className="mt-4">
-          <RelationshipTab arcs={user.arcs} chunks={user.conversationChunks} />
-        </TabsContent>
-        <TabsContent value="system" className="mt-4">
-          <SystemTab user={user} />
+        <TabsContent value="crisis" className="mt-4">
+          <CrisisEventsTab crisisEvents={user.crisisEvents} />
         </TabsContent>
       </Tabs>
 
@@ -474,8 +204,8 @@ export default function UserDetailPage() {
             <DialogTitle>Delete User Permanently</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will permanently delete <strong>{user.name}</strong> and all their data
-            (messages, memories, events, etc). This cannot be undone.
+            This will permanently delete <strong>{user.email}</strong> and all their data
+            (conversations, memories, tokens, etc). This cannot be undone.
           </p>
           <div className="space-y-2 mt-4">
             <p className="text-sm font-medium">
@@ -496,413 +226,259 @@ export default function UserDetailPage() {
               disabled={confirmEmail !== user.email || deleting}
               onClick={handleDelete}
             >
-              {deleting ? "Deleting…" : "Delete Permanently"}
+              {deleting ? "Deleting..." : "Delete Permanently"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Send Message Dialog */}
-      <Dialog open={msgOpen} onOpenChange={setMsgOpen}>
+      {/* Issue Token Grant Dialog */}
+      <Dialog open={tokenOpen} onOpenChange={setTokenOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Send message to {user.name || user.email}</DialogTitle>
+            <DialogTitle>Issue Token Grant</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div className="flex gap-4 text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="msgMode"
-                  value="llm"
-                  checked={msgMode === "llm"}
-                  onChange={() => setMsgMode("llm")}
-                />
-                LLM prompt (crafted in-persona)
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="msgMode"
-                  value="raw"
-                  checked={msgMode === "raw"}
-                  onChange={() => setMsgMode("raw")}
-                />
-                Plain text (sent verbatim)
-              </label>
-            </div>
-            {msgMode === "llm" ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Describe the message. Vesspr will write it in her voice, referencing this
-                  user&apos;s memories, personality, and arc.
-                </p>
-                <textarea
-                  className="w-full min-h-[120px] border border-input rounded-md bg-background px-3 py-2 text-sm"
-                  placeholder='e.g. "wish them luck on their move to Berlin next week"'
-                  value={msgPrompt}
-                  onChange={(e) => setMsgPrompt(e.target.value)}
-                />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Text sent to the user verbatim. Skips the LLM entirely.
-                </p>
-                <textarea
-                  className="w-full min-h-[120px] border border-input rounded-md bg-background px-3 py-2 text-sm"
-                  placeholder="Type the exact message"
-                  value={msgText}
-                  onChange={(e) => setMsgText(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMsgOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                sendingMsg ||
-                (msgMode === "raw" ? !msgText.trim() : !msgPrompt.trim())
-              }
-              onClick={handleSendMessage}
-            >
-              {sendingMsg ? "Sending…" : "Send Message"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send Birthday Dialog */}
-      <Dialog open={birthdayOpen} onOpenChange={setBirthdayOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Send birthday message</DialogTitle>
-          </DialogHeader>
-          <div className="text-sm text-muted-foreground space-y-2 mt-2">
-            <p>
-              A personalized birthday message will be crafted by the LLM, referencing this
-              user&apos;s memories, personality, and shared history.
+            <p className="text-sm text-muted-foreground">
+              Grant tokens to <strong>{user.email}</strong>. Current balance: <strong>{user.tokenBalance ?? 0}</strong>.
             </p>
-            <p>
-              DOB on file:{" "}
-              <strong>
-                {user.dateOfBirth ? formatDate(user.dateOfBirth) : "not set"}
-              </strong>
-            </p>
-          </div>
-          <label className="flex items-center gap-2 text-sm mt-3">
-            <input
-              type="checkbox"
-              checked={birthdayForce}
-              onChange={(e) => setBirthdayForce(e.target.checked)}
-              className="h-4 w-4"
-            />
-            Force send even if one was already sent this year
-          </label>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBirthdayOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={sendingBirthday} onClick={handleSendBirthday}>
-              {sendingBirthday ? "Sending…" : "Send Birthday"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Shift to WhatsApp Dialog */}
-      <Dialog open={shiftOpen} onOpenChange={setShiftOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Shift to WhatsApp</DialogTitle>
-          </DialogHeader>
-          <div className="text-sm text-muted-foreground space-y-3">
-            <p>
-              This will move <strong>{user.name || user.email}</strong> from Telegram to
-              WhatsApp. Their Telegram binding will be cleared. Their memories,
-              personality, and history stay.
-            </p>
-            <p>
-              The user must re-pair on WhatsApp by sending the pre-filled{" "}
-              <code className="bg-muted px-1 rounded">hi &lt;userId&gt;</code> message
-              to the Vesspr number.
-            </p>
-          </div>
-          <div className="space-y-3 mt-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium">
-                Type <code className="bg-muted px-1 rounded">{user.email}</code> to
-                confirm:
-              </p>
+              <p className="text-sm font-medium">Number of tokens:</p>
               <Input
-                value={shiftConfirmEmail}
-                onChange={(e) => setShiftConfirmEmail(e.target.value)}
-                placeholder={user.email}
+                type="number"
+                min={1}
+                value={tokenAmount}
+                onChange={(e) => setTokenAmount(e.target.value)}
+                placeholder="e.g. 100"
               />
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={shiftSendEmail}
-                onChange={(e) => setShiftSendEmail(e.target.checked)}
-                className="h-4 w-4"
-              />
-              Email the user a wa.me link
-            </label>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShiftOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={shiftConfirmEmail !== user.email || shifting}
-              onClick={handleShiftToWhatsapp}
-            >
-              {shifting ? "Shifting…" : "Shift to WhatsApp"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Extend Trial Dialog */}
-      <Dialog open={trialOpen} onOpenChange={setTrialOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Extend Trial for {user.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>
-                Current trial end:{" "}
-                <strong>
-                  {user.trialEndsAt ? formatDateTime(user.trialEndsAt) : "No trial set"}
-                </strong>
-              </p>
-              <p>
-                Trial status:{" "}
-                <strong>{user.trialStatus ?? "—"}</strong>
-              </p>
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Add days:</p>
-              <div className="flex gap-2">
-                {([3, 7, 14, 30] as const).map((d) => (
-                  <Button
-                    key={d}
-                    variant={extendDays === d ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setExtendDays(d)}
-                  >
-                    +{d}d
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-md bg-muted px-3 py-2 text-sm">
-              New end date:{" "}
-              <strong>
-                {(() => {
-                  const now = new Date();
-                  const base = user.trialEndsAt && new Date(user.trialEndsAt) > now
-                    ? new Date(user.trialEndsAt)
-                    : now;
-                  const newDate = new Date(base.getTime() + extendDays * 24 * 60 * 60 * 1000);
-                  return formatDate(newDate);
-                })()}
-              </strong>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTrialOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={extendingTrial} onClick={handleExtendTrial}>
-              {extendingTrial ? "Extending…" : `Add ${extendDays} Days`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send Nudge Email Dialog */}
-      <Dialog open={nudgeOpen} onOpenChange={setNudgeOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              Send Nudge Email
-              {nudgeTemplate && (
-                <Badge variant="outline" className="text-xs ml-2 font-normal">
-                  {nudgeTemplate === "expired"
-                    ? "Re-engagement template"
-                    : nudgeDaysLeft !== null
-                      ? `Expiring soon — ${nudgeDaysLeft}d left`
-                      : "Expiring soon template"}
-                </Badge>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-1">
-            <p className="text-xs text-muted-foreground">
-              Sending to <strong>{user.email}</strong>. All fields are pre-filled from the template — edit anything before sending.
-            </p>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Subject line</label>
+              <p className="text-sm font-medium">Note / reason (optional):</p>
               <Input
-                value={nudgeSubject}
-                onChange={(e) => setNudgeSubject(e.target.value)}
-                placeholder={nudgeSubject ? "" : "Loading…"}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Email body</label>
-              <p className="text-xs text-muted-foreground">Plain text. Blank lines create new paragraphs.</p>
-              <textarea
-                className="w-full min-h-[220px] border border-input rounded-md bg-background px-3 py-2 text-sm font-mono leading-relaxed resize-y"
-                value={nudgeBody}
-                onChange={(e) => setNudgeBody(e.target.value)}
-                placeholder={nudgeBody ? "" : "Loading…"}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">CTA button text</label>
-              <Input
-                value={nudgeCtaText}
-                onChange={(e) => setNudgeCtaText(e.target.value)}
-                placeholder="e.g. Keep our story going"
+                value={tokenNote}
+                onChange={(e) => setTokenNote(e.target.value)}
+                placeholder="e.g. compensation for outage"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNudgeOpen(false)}>
+            <Button variant="outline" onClick={() => setTokenOpen(false)}>
               Cancel
             </Button>
             <Button
-              disabled={sendingNudge || !nudgeSubject.trim() || !nudgeBody.trim()}
-              onClick={handleSendNudge}
+              disabled={issuingTokens || !tokenAmount || parseInt(tokenAmount, 10) <= 0}
+              onClick={handleIssueTokens}
             >
-              {sendingNudge ? "Sending…" : "Send Nudge Email"}
+              {issuingTokens ? "Issuing..." : "Issue Tokens"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-const TRIAL_STATUS_COLORS: Record<string, string> = {
-  active: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  reminded: "bg-orange-100 text-orange-800 border-orange-200",
-  expired: "bg-red-100 text-red-800 border-red-200",
-  converted: "bg-green-100 text-green-800 border-green-200",
-};
-
-function TrialStatusBadge({ status }: { status: string }) {
-  const cls = TRIAL_STATUS_COLORS[status] ?? "bg-gray-100 text-gray-700 border-gray-200";
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>
-      {status}
-    </span>
   );
 }
 
 function ProfileTab({ user }: { user: UserDetail }) {
-  const hasAttribution = user.utmSource || user.utmCampaign || user.utmContent || user.paywallVariantKey || user.paywallRuleKey || user.variantId;
-
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">User Info</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label="Nickname" value={user.nickname} />
-            <Row label="Country" value={user.country ? `${formatCountry(user.country)} (${user.country})` : null} />
-            <Row label="Living Situation" value={user.livingSituation} />
-            <Row label="Onboarding Step" value={user.onboardingStep} />
-            <Row label="Onboarding Path" value={user.onboardingPath} />
-            <Row label="Onboarding Complete" value={user.onboardingComplete ? "Yes" : "No"} />
-            <Row label="Enrichment Complete" value={user.enrichmentComplete ? "Yes" : "No"} />
-            <Row label="Memory Paused" value={user.memoryPaused ? "Yes" : "No"} />
-            <Row label="Is Paused" value={user.isPaused ? "Yes" : "No"} />
-          </CardContent>
-        </Card>
-        {user.personality && (
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Personality</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Row label="Primary Archetype" value={user.personality.primaryArchetype} />
-              <Row label="Secondary Archetype" value={user.personality.secondaryArchetype} />
-              <Row label="Tone" value={user.personality.tone} />
-              <Row label="Honesty" value={user.personality.honesty} />
-              <Row label="Depth" value={user.personality.depth} />
-              <Row label="Mirror Ceiling" value={user.personality.mirrorCeiling} />
-              <Row label="Initiation Freq" value={user.personality.initiationFrequency} />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
+    <div className="grid gap-4 md:grid-cols-2">
       <Card>
-        <CardHeader><CardTitle className="text-sm">Trial Journey</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Account</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Trial Status</span>
-            <TrialStatusBadge status={user.trialStatus ?? "active"} />
-          </div>
-          <Row label="Trial Ends At" value={user.trialEndsAt ? formatDateTime(user.trialEndsAt) : null} />
-          <Row label="Trial Reminder Sent" value={user.trialReminderSentAt ? formatDateTime(user.trialReminderSentAt) : null} />
-          <Row label="Trial Expired Notice" value={user.trialExpiredNoticeSentAt ? formatDateTime(user.trialExpiredNoticeSentAt) : null} />
+          <Row label="Email" value={user.email} />
+          <Row label="Date of Birth" value={user.dob ? formatDate(user.dob) : null} />
+          <Row label="Jurisdiction" value={user.jurisdiction} />
+          <Row label="OAuth Provider" value={user.oauthProvider} />
+          <Row label="Subscription Tier" value={user.subscriptionTier} />
+          <Row label="Token Balance" value={user.tokenBalance} />
+          <Row label="Free Messages Used" value={user.freeMessagesUsed} />
         </CardContent>
       </Card>
-
-      {hasAttribution && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Attribution</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label="UTM Source" value={user.utmSource} />
-            <Row label="UTM Campaign" value={user.utmCampaign} />
-            <Row label="UTM Content" value={user.utmContent} />
-            <Row label="Variant ID" value={user.variantId} />
-            <Row label="Paywall Variant" value={user.paywallVariantKey} />
-            <Row label="Paywall Rule" value={user.paywallRuleKey} />
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Verification and Consent</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <Row label="Age Verification Level" value={user.ageVerificationLevel} />
+          <Row label="Age Verified At" value={user.ageVerifiedAt ? formatDateTime(user.ageVerifiedAt) : null} />
+          <Row label="Email Verified At" value={user.emailVerifiedAt ? formatDateTime(user.emailVerifiedAt) : null} />
+          <Row label="ToS Accepted At" value={user.tosAcceptedAt ? formatDateTime(user.tosAcceptedAt) : null} />
+          <Row label="Privacy Accepted At" value={user.privacyAcceptedAt ? formatDateTime(user.privacyAcceptedAt) : null} />
+          <Row label="Consent Accepted At" value={user.consentAcceptedAt ? formatDateTime(user.consentAcceptedAt) : null} />
+          <Row label="Policy Version" value={user.acceptedPolicyVersion} />
+          <Row label="Onboarding Complete" value={user.completedOnboardingAt ? formatDateTime(user.completedOnboardingAt) : null} />
+          <Row label="Created At" value={formatDateTime(user.createdAt)} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function MessagesTab({ messages }: { messages: UserDetail[] }) {
-  if (!messages?.length) return <Empty label="No messages" />;
+function ConversationsTab({
+  conversations,
+  router,
+}: {
+  conversations: UserDetail[];
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  if (!conversations?.length) return <Empty label="No conversations" />;
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Sender</TableHead>
-          <TableHead>Platform</TableHead>
-          <TableHead className="max-w-md">Content</TableHead>
-          <TableHead>Sent At</TableHead>
+          <TableHead className="w-8" />
+          <TableHead>Character Name</TableHead>
+          <TableHead>Style</TableHead>
+          <TableHead>Content Rating</TableHead>
+          <TableHead>Moderation Status</TableHead>
+          <TableHead>Message Count</TableHead>
+          <TableHead>Last Message At</TableHead>
+          <TableHead />
         </TableRow>
       </TableHeader>
       <TableBody>
-        {messages.map((m: UserDetail) => (
-          <TableRow key={m.id}>
-            <TableCell>
-              <Badge variant={m.sender === "user" ? "default" : "secondary"}>{m.sender}</Badge>
-            </TableCell>
-            <TableCell><Badge variant="outline">{m.platform}</Badge></TableCell>
-            <TableCell className="max-w-md truncate">{m.content}</TableCell>
-            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-              {formatDateTime(m.sentAt)}
-            </TableCell>
-          </TableRow>
-        ))}
+        {conversations.map((c: UserDetail) => {
+          const isOpen = expandedId === c.id;
+          return (
+            <Fragment key={c.id}>
+              <TableRow
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => setExpandedId(isOpen ? null : c.id)}
+              >
+                <TableCell className="text-muted-foreground">
+                  <ChevronRight
+                    className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">{c.character?.name ?? c.characterId}</TableCell>
+                <TableCell><Badge variant="outline">{c.character?.style ?? "—"}</Badge></TableCell>
+                <TableCell>{c.character?.contentRating ?? "—"}</TableCell>
+                <TableCell>{c.character?.moderationStatus ?? "—"}</TableCell>
+                <TableCell>{c.messageCount}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {c.lastMessageAt ? formatDateTime(c.lastMessageAt) : "—"}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/characters/${c.character?.id ?? c.characterId}`);
+                    }}
+                  >
+                    View character
+                  </Button>
+                </TableCell>
+              </TableRow>
+              {isOpen && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={8} className="bg-muted/30 p-0">
+                    <ConversationMessages
+                      conversationId={c.id}
+                      characterName={c.character?.name ?? c.characterId}
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+            </Fragment>
+          );
+        })}
       </TableBody>
     </Table>
+  );
+}
+
+interface ChatMessage {
+  id: string;
+  role: string;
+  content: string;
+  mediaAssetId: string | null;
+  tokenCost: number | null;
+  createdAt: string;
+}
+
+function ConversationMessages({
+  conversationId,
+  characterName,
+}: {
+  conversationId: string;
+  characterName: string;
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/conversations/${conversationId}/messages?page=${page}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setMessages((prev) => (page === 1 ? data.messages : [...prev, ...data.messages]));
+        setTotal(data.total ?? 0);
+        setHasMore(Boolean(data.hasMore));
+      } catch {
+        if (!cancelled) toast.error("Failed to load messages");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, page]);
+
+  if (loading && messages.length === 0) {
+    return <div className="py-6 text-center text-sm text-muted-foreground">Loading messages...</div>;
+  }
+  if (!loading && total === 0) {
+    return <div className="py-6 text-center text-sm text-muted-foreground">No messages in this conversation</div>;
+  }
+
+  return (
+    <div className="p-4 space-y-3 max-h-[28rem] overflow-y-auto">
+      <p className="text-xs text-muted-foreground">
+        {total} message{total === 1 ? "" : "s"} with {characterName}
+      </p>
+      {messages.map((m) => {
+        const isUser = m.role === "user";
+        return (
+          <div key={m.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+            <div
+              className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
+                isUser ? "bg-primary text-primary-foreground" : "bg-background border"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant={isUser ? "secondary" : "outline"} className="text-[10px] capitalize">
+                  {m.role}
+                </Badge>
+                <span className={`text-[10px] ${isUser ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                  {formatDateTime(m.createdAt)}
+                </span>
+              </div>
+              <p className="whitespace-pre-wrap break-words">{m.content}</p>
+              {m.mediaAssetId && (
+                <p className={`mt-1 text-[10px] ${isUser ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                  [media attached: {m.mediaAssetId}]
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {hasMore && (
+        <div className="text-center pt-2">
+          <Button variant="outline" size="sm" disabled={loading} onClick={() => setPage((p) => p + 1)}>
+            {loading ? "Loading..." : "Load older messages"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -912,20 +488,22 @@ function MemoriesTab({ memories }: { memories: UserDetail[] }) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Type</TableHead>
+          <TableHead>Category</TableHead>
+          <TableHead>Tier</TableHead>
           <TableHead>Importance</TableHead>
-          <TableHead className="max-w-md">Content</TableHead>
           <TableHead>Pinned</TableHead>
+          <TableHead className="max-w-md">Content</TableHead>
           <TableHead>Created</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {memories.map((m: UserDetail) => (
           <TableRow key={m.id}>
-            <TableCell><Badge variant="outline">{m.type}</Badge></TableCell>
-            <TableCell><Badge variant={m.importance === "high" ? "destructive" : "secondary"}>{m.importance}</Badge></TableCell>
+            <TableCell><Badge variant="outline">{m.category}</Badge></TableCell>
+            <TableCell><Badge variant="secondary">{m.tier}</Badge></TableCell>
+            <TableCell>{m.importance ?? "—"}</TableCell>
+            <TableCell>{m.pinned ? "Yes" : "—"}</TableCell>
             <TableCell className="max-w-md truncate">{m.content}</TableCell>
-            <TableCell>{m.isPinned ? "📌" : "—"}</TableCell>
             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
               {formatDate(m.createdAt)}
             </TableCell>
@@ -936,225 +514,87 @@ function MemoriesTab({ memories }: { memories: UserDetail[] }) {
   );
 }
 
-function EventsTab({ events }: { events: UserDetail[] }) {
-  if (!events?.length) return <Empty label="No events" />;
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Title</TableHead>
-          <TableHead>Date</TableHead>
-          <TableHead>Importance</TableHead>
-          <TableHead>Follow-up Sent</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {events.map((e: UserDetail) => (
-          <TableRow key={e.id}>
-            <TableCell>{e.title}</TableCell>
-            <TableCell className="whitespace-nowrap">{formatDate(e.eventDate)}</TableCell>
-            <TableCell><Badge variant="outline">{e.importance}</Badge></TableCell>
-            <TableCell>{e.followUpSent ? "Yes" : "No"}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function EmotionalTab({
-  patterns,
-  contexts,
-  crises,
+function SubscriptionTab({
+  subscription,
+  tokenLedger,
+  usageCounters,
 }: {
-  patterns: UserDetail[];
-  contexts: UserDetail[];
-  crises: UserDetail[];
+  subscription: UserDetail;
+  tokenLedger: UserDetail[];
+  usageCounters: UserDetail[];
 }) {
   return (
     <div className="space-y-6">
+      {subscription ? (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Subscription</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Row label="Provider" value={subscription.provider} />
+            <Row label="Tier" value={subscription.tier} />
+            <Row label="Plan" value={subscription.plan} />
+            <Row label="Status" value={subscription.status} />
+            <Row
+              label="Current Period End"
+              value={subscription.currentPeriodEnd ? formatDateTime(subscription.currentPeriodEnd) : null}
+            />
+            <Row label="External ID" value={subscription.externalId} />
+          </CardContent>
+        </Card>
+      ) : (
+        <p className="text-sm text-muted-foreground">No subscription record found.</p>
+      )}
+
       <div>
-        <h3 className="font-medium mb-2">Emotional Patterns ({patterns?.length || 0})</h3>
-        {patterns?.length ? (
+        <h3 className="font-medium mb-2">Token Ledger ({tokenLedger?.length || 0})</h3>
+        {tokenLedger?.length ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Pattern</TableHead>
-                <TableHead>Confidence</TableHead>
-                <TableHead>Occurrences</TableHead>
-                <TableHead>Last Seen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {patterns.map((p: UserDetail) => (
-                <TableRow key={p.id}>
-                  <TableCell>{p.pattern}</TableCell>
-                  <TableCell>{(p.confidence * 100).toFixed(0)}%</TableCell>
-                  <TableCell>{p.occurrences}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(p.lastSeen)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : <Empty label="No patterns" />}
-      </div>
-      <div>
-        <h3 className="font-medium mb-2">Emotional Contexts ({contexts?.length || 0})</h3>
-        {contexts?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Category</TableHead>
-                <TableHead>Severity</TableHead>
-                <TableHead>Phase</TableHead>
-                <TableHead>Trigger</TableHead>
+                <TableHead>Delta</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Balance After</TableHead>
+                <TableHead>Ref ID</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {contexts.map((c: UserDetail) => (
-                <TableRow key={c.id}>
-                  <TableCell>{c.category}</TableCell>
-                  <TableCell><Badge variant="outline">{c.severity}</Badge></TableCell>
-                  <TableCell>{c.phase}</TableCell>
-                  <TableCell className="max-w-xs truncate">{c.trigger}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(c.createdAt)}</TableCell>
+              {tokenLedger.map((entry: UserDetail) => (
+                <TableRow key={entry.id}>
+                  <TableCell>
+                    <span className={entry.delta >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                      {entry.delta >= 0 ? "+" : ""}{entry.delta}
+                    </span>
+                  </TableCell>
+                  <TableCell><Badge variant="outline">{entry.reason}</Badge></TableCell>
+                  <TableCell>{entry.balanceAfter}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{entry.refId ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                    {formatDateTime(entry.createdAt)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        ) : <Empty label="No contexts" />}
+        ) : <Empty label="No token ledger entries" />}
       </div>
+
       <div>
-        <h3 className="font-medium mb-2">Crisis Events ({crises?.length || 0})</h3>
-        {crises?.length ? (
+        <h3 className="font-medium mb-2">Usage Counters ({usageCounters?.length || 0})</h3>
+        {usageCounters?.length ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Level</TableHead>
-                <TableHead>Message</TableHead>
-                <TableHead>Action Taken</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {crises.map((c: UserDetail) => (
-                <TableRow key={c.id}>
-                  <TableCell><Badge variant="destructive">Level {c.level}</Badge></TableCell>
-                  <TableCell className="max-w-xs truncate">{c.messageContent}</TableCell>
-                  <TableCell>{c.actionTaken}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(c.createdAt)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : <Empty label="No crisis events" />}
-      </div>
-    </div>
-  );
-}
-
-function SubscriptionTab({ subscription, usage }: { subscription: UserDetail; usage: UserDetail[] }) {
-  const hasPaid = subscription?.status === "active" || subscription?.status === "past_due" || subscription?.paywallPriceSetKey;
-  const isPPP = subscription?.pppTier && subscription.pppTier !== "T0";
-
-  return (
-    <div className="space-y-6">
-      {subscription && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                Payment Status
-                <Badge variant={hasPaid ? "default" : "outline"}>
-                  {hasPaid ? "Paid" : "Not Paid / Trial"}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Row label="Tier" value={subscription.tier} />
-              <Row label="Status" value={subscription.status} />
-              <Row label="Billing Interval" value={subscription.billingInterval} />
-              <Row label="Started" value={subscription.startedAt ? formatDate(subscription.startedAt) : null} />
-              <Row label="Next Billing" value={subscription.nextBillingAt ? formatDate(subscription.nextBillingAt) : null} />
-              <Row label="Canceled At" value={subscription.canceledAt ? formatDate(subscription.canceledAt) : null} />
-              {subscription.grandfatheredPriceCents && (
-                <Row label="Grandfathered Price" value={`$${(subscription.grandfatheredPriceCents / 100).toFixed(2)}/mo`} />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Provider</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Row label="Provider" value={subscription.provider ?? (subscription.stripeCustomerId ? "stripe" : null)} />
-              <Row label="Customer ID" value={subscription.providerCustomerId ?? subscription.stripeCustomerId} />
-              <Row label="Subscription ID" value={subscription.providerSubscriptionId ?? subscription.stripeSubscriptionId} />
-              <Row label="Price ID" value={subscription.providerPriceId} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                Paywall Attribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Row label="Variant Shown" value={subscription.paywallVariantKey} />
-              <Row label="Rule Matched" value={subscription.paywallRuleKey} />
-              <Row label="Price Set Used" value={subscription.paywallPriceSetKey} />
-            </CardContent>
-          </Card>
-
-          {(subscription.pppTier || subscription.purchaseCountry) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  PPP Pricing Snapshot
-                  {isPPP && <Badge variant="secondary" className="text-xs">PPP Applied</Badge>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row label="PPP Tier" value={subscription.pppTier} />
-                <Row label="Multiplier" value={subscription.pppMultiplier ? `${subscription.pppMultiplier}x` : null} />
-                <Row label="Purchase Country" value={subscription.purchaseCountry} />
-                <Row
-                  label="Purchase Price"
-                  value={
-                    subscription.purchasePriceCents
-                      ? `${(subscription.purchasePriceCents / 100).toFixed(2)} ${subscription.purchaseCurrency ?? "USD"}`
-                      : null
-                  }
-                />
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
-      <div>
-        <h3 className="font-medium mb-2">Usage Counters</h3>
-        {usage?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
+                <TableHead>Counter Type</TableHead>
                 <TableHead>Period</TableHead>
-                <TableHead>Start</TableHead>
-                <TableHead>LLM</TableHead>
-                <TableHead>Voice</TableHead>
-                <TableHead>Images</TableHead>
-                <TableHead>AI Initiated</TableHead>
+                <TableHead>Count</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {usage.map((u: UserDetail) => (
+              {usageCounters.map((u: UserDetail) => (
                 <TableRow key={u.id}>
+                  <TableCell>{u.counterType}</TableCell>
                   <TableCell>{u.period}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(u.periodStart)}</TableCell>
-                  <TableCell>{u.llmMessages}</TableCell>
-                  <TableCell>{u.voiceNotes}</TableCell>
-                  <TableCell>{u.imageGens}</TableCell>
-                  <TableCell>{u.aiInitiated}</TableCell>
+                  <TableCell>{u.count}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1165,139 +605,31 @@ function SubscriptionTab({ subscription, usage }: { subscription: UserDetail; us
   );
 }
 
-function RelationshipTab({ arcs, chunks }: { arcs: UserDetail[]; chunks: UserDetail[] }) {
+function CrisisEventsTab({ crisisEvents }: { crisisEvents: UserDetail[] }) {
+  if (!crisisEvents?.length) return <Empty label="No crisis events" />;
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="font-medium mb-2">Relationship Arcs</h3>
-        {arcs?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Week</TableHead>
-                <TableHead>Themes</TableHead>
-                <TableHead>Tone</TableHead>
-                <TableHead>Messages</TableHead>
-                <TableHead>Response Rate</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {arcs.map((a: UserDetail) => (
-                <TableRow key={a.id}>
-                  <TableCell>Week {a.weekNumber}</TableCell>
-                  <TableCell className="max-w-xs">{a.themes?.join(", ")}</TableCell>
-                  <TableCell>{a.emotionalToneAvg}</TableCell>
-                  <TableCell>{a.totalMessagesSent}</TableCell>
-                  <TableCell>{(a.responseRate * 100).toFixed(0)}%</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : <Empty label="No arcs" />}
-      </div>
-      <div>
-        <h3 className="font-medium mb-2">Conversation Chunks</h3>
-        {chunks?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Topic</TableHead>
-                <TableHead className="max-w-md">Content</TableHead>
-                <TableHead>Archived</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {chunks.map((c: UserDetail) => (
-                <TableRow key={c.id}>
-                  <TableCell>{c.topic || "—"}</TableCell>
-                  <TableCell className="max-w-md truncate">{c.content}</TableCell>
-                  <TableCell>{c.isArchived ? "Yes" : "No"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(c.createdAt)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : <Empty label="No chunks" />}
-      </div>
-    </div>
-  );
-}
-
-function SystemTab({ user }: { user: UserDetail }) {
-  return (
-    <div className="space-y-6">
-      {user.boundary && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Boundary Settings</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label="DND" value={`${user.boundary.dndStart} – ${user.boundary.dndEnd}`} />
-            <Row label="Max Daily AI Msgs" value={user.boundary.maxDailyAiMessages} />
-            <Row label="Ping Cadence" value={user.boundary.pingCadence} />
-            <Row label="Voice Enabled" value={user.boundary.voiceNotesEnabled ? "Yes" : "No"} />
-            <Row label="Follow-up Enabled" value={user.boundary.followUpEnabled ? "Yes" : "No"} />
-          </CardContent>
-        </Card>
-      )}
-      <div>
-        <h3 className="font-medium mb-2">Scheduled Pings ({user.scheduledPings?.length || 0})</h3>
-        {user.scheduledPings?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Reason</TableHead>
-                <TableHead>Scheduled</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {user.scheduledPings.map((p: UserDetail) => (
-                <TableRow key={p.id}>
-                  <TableCell>{p.reason}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDateTime(p.scheduledAt)}</TableCell>
-                  <TableCell><Badge variant="outline">{p.status}</Badge></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : <Empty label="No pings" />}
-      </div>
-      {user.persona && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">User Persona</CardTitle></CardHeader>
-          <CardContent>
-            <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-64 whitespace-pre-wrap">
-              {user.persona.persona}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
-      <div>
-        <h3 className="font-medium mb-2">Memory Summaries ({user.memorySummaries?.length || 0})</h3>
-        {user.memorySummaries?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Period</TableHead>
-                <TableHead>Sentiment</TableHead>
-                <TableHead>Themes</TableHead>
-                <TableHead>Summary</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {user.memorySummaries.map((s: UserDetail) => (
-                <TableRow key={s.id}>
-                  <TableCell>{s.period}</TableCell>
-                  <TableCell>{s.sentiment}</TableCell>
-                  <TableCell className="max-w-xs">{s.themes?.join(", ")}</TableCell>
-                  <TableCell className="max-w-md truncate">{s.summary}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : <Empty label="No summaries" />}
-      </div>
-    </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Level</TableHead>
+          <TableHead>Trigger</TableHead>
+          <TableHead>Action</TableHead>
+          <TableHead>Created</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {crisisEvents.map((c: UserDetail) => (
+          <TableRow key={c.id}>
+            <TableCell><Badge variant="destructive">Level {c.level}</Badge></TableCell>
+            <TableCell className="max-w-xs truncate">{c.trigger ?? "—"}</TableCell>
+            <TableCell>{c.action ?? "—"}</TableCell>
+            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+              {formatDateTime(c.createdAt)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 

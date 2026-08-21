@@ -1,25 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { safeRoute } from "@/lib/safe-route";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+export async function GET(req: NextRequest) {
+  const { searchParams } = req.nextUrl;
+  const days = parseInt(searchParams.get("days") ?? "14");
 
-  const results: { day: Date; dau: bigint }[] = await prisma.$queryRawUnsafe(
-    `SELECT date_trunc('day', "sentAt") as day,
-            COUNT(DISTINCT "userId")::bigint as dau
-     FROM "Message"
-     WHERE "sender" = 'user' AND "sentAt" >= $1
-     GROUP BY day
-     ORDER BY day`,
-    since
-  );
+  return safeRoute<{ date: string; count: number }[]>(async () => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
 
-  const data = results.map((r) => ({
-    date: r.day.toISOString().slice(0, 10),
-    dau: Number(r.dau),
-  }));
+    // Get distinct users per day using raw query for efficiency
+    const results: { day: Date; count: bigint }[] = await prisma.$queryRawUnsafe(
+      `SELECT date_trunc('day', "updatedAt") as day,
+              COUNT(DISTINCT "userId")::bigint as count
+       FROM "Conversation"
+       WHERE "updatedAt" >= $1
+       GROUP BY day
+       ORDER BY day`,
+      since
+    );
 
-  return NextResponse.json(data);
+    return results.map((r) => ({
+      date: r.day.toISOString().slice(0, 10),
+      count: Number(r.count),
+    }));
+  }, []);
 }

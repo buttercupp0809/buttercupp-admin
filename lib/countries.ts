@@ -1,7 +1,7 @@
 /**
  * Valid ISO-2 country codes for paywall rule country-scoping. Copied from the
- * Pellow PPP map (frontend/lib/pricing/ppp.ts COUNTRY_TO_TIER keys) since admin
- * does not import from the Pellow frontend. Labels are resolved via
+ * Poppy PPP map (frontend/lib/pricing/ppp.ts COUNTRY_TO_TIER keys) since admin
+ * does not import from the Poppy frontend. Labels are resolved via
  * Intl.DisplayNames so we don't hand-maintain a name table.
  */
 const CODES = [

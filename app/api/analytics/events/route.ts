@@ -1,22 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { safeRoute } from "@/lib/safe-route";
 
-export async function GET(req: NextRequest) {
-  const days = parseInt(req.nextUrl.searchParams.get("days") || "30");
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+export const dynamic = "force-dynamic";
 
-  const results = await prisma.analyticsEvent.groupBy({
-    by: ["eventName"],
-    where: { createdAt: { gte: since } },
-    _count: { eventName: true },
-    orderBy: { _count: { eventName: "desc" } },
-    take: 20,
-  });
-
-  const data = results.map((r) => ({
-    eventName: r.eventName,
-    count: r._count.eventName,
-  }));
-
-  return NextResponse.json(data);
+export async function GET() {
+  return safeRoute<{ name: string; count: number }[]>(async () => {
+    const events = await prisma.analyticsEvent.groupBy({
+      by: ["name"],
+      _count: { name: true },
+      orderBy: { _count: { name: "desc" } },
+      take: 20,
+    });
+    return events.map((e) => ({ name: e.name, count: e._count.name }));
+  }, []);
 }

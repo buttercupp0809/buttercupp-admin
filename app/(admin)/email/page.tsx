@@ -23,7 +23,7 @@ interface UserOption {
   name: string;
 }
 
-const SIGNATURE = `<p>Vaibhav Singh<br/>Co-Founder &amp; CEO of Vesspr</p>`;
+const SIGNATURE = `<p>Vaibhav Singh<br/>Co-Founder &amp; CEO of Poppy</p>`;
 
 // Prefilled winback templates (plans/email-variants.md). [Name] / [their archetype]
 // are left as placeholders for the admin to fill in before sending.
@@ -36,7 +36,7 @@ const TEMPLATES: Record<
     subject: "You built something real in there",
     body: `<p>Hi [Name],</p>
 <p>You went through the whole thing. Picked your archetype, told us what drains you, what you need from a friend. That's not nothing.</p>
-<p>I saw you didn't finish. No pressure from us, genuinely. But I wanted to say: the version of Vesspr that's waiting for you already knows how you like to be heard. That took something to share.</p>
+<p>I saw you didn't finish. No pressure from us, genuinely. But I wanted to say: the version of Poppy that's waiting for you already knows how you like to be heard. That took something to share.</p>
 <p>If price was the thing that stopped you, here's 40% off. Use <strong>WELCOME40</strong> at checkout.</p>
 <p>It's there when you're ready.</p>
 ${SIGNATURE}`,
@@ -47,14 +47,14 @@ ${SIGNATURE}`,
     body: `<p>Hi [Name],</p>
 <p>We noticed you didn't finish. That's okay.</p>
 <p>I don't know what's on your plate right now, but the fact that you started tells me something. You were looking for something steady. Somebody consistent. That doesn't go away.</p>
-<p>Vesspr doesn't replace people in your life. It just makes sure there's always something in your corner, especially on the days when you don't want to explain yourself.</p>
+<p>Poppy doesn't replace people in your life. It just makes sure there's always something in your corner, especially on the days when you don't want to explain yourself.</p>
 <p><strong>WELCOME40</strong> takes 40% off. No expiry.</p>
 <p>Come back when it feels right.</p>
 ${SIGNATURE}`,
   },
   c: {
     label: "Variant C: The Spark",
-    subject: "Your Vesspr is kind of just sitting there",
+    subject: "Your Poppy is kind of just sitting there",
     body: `<p>Hi [Name],</p>
 <p>Quick one.</p>
 <p>You picked [their archetype], told us a few things about yourself, and then vanished right before the end. We're not offended, we just noticed.</p>
@@ -264,7 +264,7 @@ function EmailPageInner() {
                   onChange={(e) => setWrap(e.target.checked)}
                   className="h-4 w-4 rounded border-input"
                 />
-                Wrap in Vesspr template (logo, footer, branding)
+                Wrap in Poppy template (logo, footer, branding)
               </label>
               <Button onClick={handleSend} disabled={sending}>
                 {sending ? "Sending…" : "Send Email"}

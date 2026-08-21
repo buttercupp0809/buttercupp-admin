@@ -2,7 +2,7 @@ import { jwtVerify, SignJWT } from "jose";
 import { compare } from "bcryptjs";
 import { cookies } from "next/headers";
 
-const COOKIE_NAME = "vesspr-admin-token";
+const COOKIE_NAME = "poppy-admin-token";
 const JWT_SECRET = new TextEncoder().encode(
   process.env.ADMIN_JWT_SECRET || ""
 );

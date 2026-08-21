@@ -1,27 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { safeRoute } from "@/lib/safe-route";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const granularity = req.nextUrl.searchParams.get("granularity") || "day";
-  const days = parseInt(req.nextUrl.searchParams.get("days") || "90");
+  const { searchParams } = req.nextUrl;
+  const days = parseInt(searchParams.get("days") ?? "30");
 
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const trunc = granularity === "month" ? "month" : granularity === "week" ? "week" : "day";
+  return safeRoute<{ date: string; count: number }[]>(async () => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
 
-  const results: { period: Date; count: bigint }[] = await prisma.$queryRawUnsafe(
-    `SELECT date_trunc($1, "createdAt") as period, COUNT(*)::bigint as count
-     FROM "User"
-     WHERE "createdAt" >= $2
-     GROUP BY period
-     ORDER BY period`,
-    trunc,
-    since
-  );
+    const results: { day: Date; count: bigint }[] = await prisma.$queryRawUnsafe(
+      `SELECT date_trunc('day', "createdAt") as day, COUNT(*)::bigint as count
+       FROM "User"
+       WHERE "createdAt" >= $1
+       GROUP BY day
+       ORDER BY day`,
+      since
+    );
 
-  const data = results.map((r) => ({
-    period: r.period.toISOString().slice(0, 10),
-    count: Number(r.count),
-  }));
-
-  return NextResponse.json(data);
+    return results.map((r) => ({ date: r.day.toISOString().slice(0, 10), count: Number(r.count) }));
+  }, []);
 }
