@@ -32,6 +32,7 @@ interface UserRow {
   ageVerificationLevel: string;
   completedOnboardingAt: string | null;
   createdAt: string;
+  profile: { displayName: string | null; gender: string | null } | null;
 }
 
 const TIER_OPTIONS: { value: Tier; label: string }[] = [
