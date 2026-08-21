@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Eye, EyeOff, Trash2 } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { mediaUrl, isImageUrl } from "@/lib/media-url";
 
@@ -68,6 +68,8 @@ export default function CharacterDetailPage() {
   const [moderateReason, setModerateReason] = useState("");
   const [moderating, setModerating] = useState(false);
   const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const [deleteMediaId, setDeleteMediaId] = useState<string | null>(null);
+  const [deletingMedia, setDeletingMedia] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -154,6 +156,28 @@ export default function CharacterDetailPage() {
       toast.error("Failed to toggle visibility");
     } finally {
       setTogglingVisibility(false);
+    }
+  }
+
+  async function handleDeleteMedia() {
+    if (!deleteMediaId) return;
+    setDeletingMedia(true);
+    try {
+      const res = await fetch(`/api/characters/${id}/media/${deleteMediaId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete media");
+        return;
+      }
+      toast.success("Media deleted");
+      setCharacter((prev: CharacterDetail) =>
+        prev ? { ...prev, media: prev.media.filter((m: CharacterDetail) => m.id !== deleteMediaId) } : prev
+      );
+      setDeleteMediaId(null);
+    } catch {
+      toast.error("Failed to delete media");
+    } finally {
+      setDeletingMedia(false);
     }
   }
 
@@ -442,6 +466,7 @@ export default function CharacterDetailPage() {
                     <TableHead>Hidden</TableHead>
                     <TableHead>Sort</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -490,6 +515,15 @@ export default function CharacterDetailPage() {
                       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {formatDate(m.createdAt)}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeleteMediaId(m.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -498,6 +532,26 @@ export default function CharacterDetailPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Media Dialog */}
+      <Dialog open={!!deleteMediaId} onOpenChange={(open) => { if (!open) setDeleteMediaId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Media</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mt-2">
+            This will permanently delete the media from S3 and the database. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteMediaId(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deletingMedia} onClick={handleDeleteMedia}>
+              {deletingMedia ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Moderate Dialog */}
       <Dialog open={moderateOpen} onOpenChange={setModerateOpen}>
