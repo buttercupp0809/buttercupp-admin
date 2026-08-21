@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
+import { getAdminEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// Mirrors backend/scripts/create-reviewer-account.ts: bcrypt cost 12 so the
-// resulting hash is interchangeable with the user-facing login route.
 const BCRYPT_COST = 12;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ACTIVE_TIER = "active";
-
-function deriveNameFromEmail(email: string): string {
-  const local = email.split("@")[0] || "User";
-  return local
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ") || local;
-}
 
 export async function POST(req: NextRequest) {
+  const admin = await getAdminEmail();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = (await req.json().catch(() => null)) as
-    | { email?: string; password?: string; name?: string }
+    | { email?: string; password?: string; subscriptionTier?: string }
     | null;
 
   if (!body) {
@@ -28,62 +20,33 @@ export async function POST(req: NextRequest) {
 
   const email = (body.email || "").trim().toLowerCase();
   const password = (body.password || "").trim();
-  const name = (body.name || "").trim() || deriveNameFromEmail(email);
+  const tier = (body.subscriptionTier || "free") as "free" | "premium" | "pro";
 
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
   }
   if (!password || password.length < 8) {
-    return NextResponse.json(
-      { error: "Password must be at least 8 characters" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+  }
+  if (!["free", "premium", "pro"].includes(tier)) {
+    return NextResponse.json({ error: "Invalid subscription tier" }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {
-    return NextResponse.json(
-      { error: "A user with that email already exists" },
-      { status: 409 }
-    );
+    return NextResponse.json({ error: "A user with that email already exists" }, { status: 409 });
   }
 
   const passwordHash = await hash(password, BCRYPT_COST);
 
-  // Mirrors create-reviewer-account.ts: User + Personality + Subscription so
-  // the account passes the dashboard's paywall guards on first sign-in.
   const user = await prisma.user.create({
     data: {
       email,
-      name,
       passwordHash,
-      platform: "whatsapp",
-      timezone: "UTC",
-      country: "US",
-      onboardingComplete: true,
-      subscriptionTier: ACTIVE_TIER,
-      ageVerified: true,
-      age: 30,
-      gender: "prefer-not-to-say",
-      personality: { create: {} },
-      subscription: {
-        create: {
-          tier: ACTIVE_TIER,
-          status: "active",
-          billingInterval: "monthly",
-          startedAt: new Date(),
-          nextBillingAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-        },
-      },
+      subscriptionTier: tier,
     },
-    select: { id: true, email: true, name: true, createdAt: true },
+    select: { id: true, email: true, subscriptionTier: true, createdAt: true },
   });
 
-  return NextResponse.json({
-    user,
-    credentials: { email, password },
-  });
+  return NextResponse.json({ user, credentials: { email, password } });
 }

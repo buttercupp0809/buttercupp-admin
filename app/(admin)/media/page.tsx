@@ -99,12 +99,14 @@ export default function MediaPage() {
     fetchAssets();
   }, [fetchAssets]);
 
-  function handleStatusChange(v: string) {
+  function handleStatusChange(v: string | null) {
+    if (!v) return;
     setStatus(v as StatusFilter);
     setPage(1);
   }
 
-  function handleKindChange(v: string) {
+  function handleKindChange(v: string | null) {
+    if (!v) return;
     setKind(v as KindFilter);
     setPage(1);
   }

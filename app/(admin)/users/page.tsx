@@ -90,7 +90,8 @@ export default function UsersPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  function handleTierChange(v: string) {
+  function handleTierChange(v: string | null) {
+    if (!v) return;
     setTier(v as Tier);
     setPage(1);
   }

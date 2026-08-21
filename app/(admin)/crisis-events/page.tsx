@@ -74,7 +74,8 @@ export default function CrisisEventsPage() {
     fetchEvents();
   }, [fetchEvents]);
 
-  function handleLevelChange(v: string) {
+  function handleLevelChange(v: string | null) {
+    if (!v) return;
     setLevel(v as LevelFilter);
     setPage(1);
   }

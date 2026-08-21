@@ -99,7 +99,8 @@ export default function TokensPage() {
     fetchLedger();
   }, [fetchLedger]);
 
-  function handleReasonChange(v: string) {
+  function handleReasonChange(v: string | null) {
+    if (!v) return;
     setReason(v as Reason);
     setPage(1);
   }
