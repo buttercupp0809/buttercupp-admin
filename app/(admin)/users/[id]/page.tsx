@@ -519,6 +519,31 @@ function ProfileTab({
           <Row label="Created At" value={formatDateTime(user.createdAt)} />
         </CardContent>
       </Card>
+      {/* Last-login device snapshot. Populated by every auth surface that
+          mints a session cookie in the poppy repo (see recordLogin in
+          poppy/frontend/lib/auth.ts). Nullable while the row was created
+          before the tracking column existed, or if the user hasn't logged
+          in again since the migration ran. */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Last Login</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <Row
+            label="Device Type"
+            value={
+              user.lastLoginDeviceType
+                ? user.lastLoginDeviceType.charAt(0).toUpperCase() + user.lastLoginDeviceType.slice(1)
+                : null
+            }
+          />
+          <Row label="Last Login At" value={user.lastLoginAt ? formatDateTime(user.lastLoginAt) : null} />
+          <div>
+            <p className="text-muted-foreground mb-1">User Agent</p>
+            <p className="font-mono text-xs break-all bg-muted p-2 rounded">
+              {user.lastLoginUserAgent ?? "—"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

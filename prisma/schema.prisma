@@ -107,6 +107,14 @@ model User {
   consentAcceptedAt      DateTime?
   acceptedPolicyVersion  String?
   completedOnboardingAt  DateTime?
+  // Mirrors poppy schema: last-login device snapshot. Owned by poppy repo;
+  // admin only reads these. Bucket values: "mobile" | "tablet" | "desktop"
+  // | "unknown". UA is truncated to 512 chars at write time in the poppy
+  // repo. See poppy/packages/database/prisma/schema.prisma for the full
+  // rationale.
+  lastLoginAt            DateTime?
+  lastLoginDeviceType    String?
+  lastLoginUserAgent     String?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
 

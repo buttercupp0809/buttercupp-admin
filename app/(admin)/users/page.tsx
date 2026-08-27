@@ -32,7 +32,22 @@ interface UserRow {
   ageVerificationLevel: string;
   completedOnboardingAt: string | null;
   createdAt: string;
+  lastLoginAt: string | null;
+  lastLoginDeviceType: string | null;
   profile: { displayName: string | null; gender: string | null } | null;
+}
+
+// Device bucket -> Badge variant. Kept in sync with classifyDevice() in
+// poppy/frontend/lib/device.ts: "mobile" | "tablet" | "desktop" | "unknown".
+function deviceVariant(device: string | null): "default" | "secondary" | "outline" {
+  if (device === "mobile" || device === "tablet") return "default";
+  if (device === "desktop") return "outline";
+  return "secondary";
+}
+
+function formatDevice(device: string | null): string {
+  if (!device) return "—";
+  return device.charAt(0).toUpperCase() + device.slice(1);
 }
 
 const TIER_OPTIONS: { value: Tier; label: string }[] = [
@@ -142,19 +157,20 @@ export default function UsersPage() {
               <TableHead className="text-right">Token Balance</TableHead>
               <TableHead>Age Verification</TableHead>
               <TableHead>Onboarding</TableHead>
+              <TableHead>Device</TableHead>
               <TableHead className="text-right">Created</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -192,6 +208,11 @@ export default function UsersPage() {
                         Incomplete
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={deviceVariant(user.lastLoginDeviceType)} className="text-xs">
+                      {formatDevice(user.lastLoginDeviceType)}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground text-sm">
                     {formatDate(user.createdAt)}
