@@ -14,6 +14,11 @@
  *                   pass an explicit ?dryRun=0 (or ?dryRun=false). A plain call
  *                   to /api/cron/nurture is always a safe dry-run.
  *   ?segment=N      Run only segment N (1-4). Omit to run all four segments.
+ *   ?to=<email>     TEST override. Sends the selected segment's rendered email
+ *                   to THIS address only, bypassing eligibility, cadence caps,
+ *                   suppression, and EmailSendLog. Still honors dryRun, so a
+ *                   real test send needs ?to=<email>&dryRun=0. Pair with
+ *                   ?segment=N to preview one template; omit segment for all 4.
  *
  * Response: JSON summary of what was (or would be) sent.
  *
@@ -54,6 +59,8 @@ const QuerySchema = z.object({
     .refine((v) => v === undefined || (v >= 1 && v <= 4), {
       message: "segment must be 1, 2, 3, or 4",
     }),
+  // Test override: send only to this address (see route JSDoc).
+  to: z.string().email().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -74,6 +81,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const raw = {
     dryRun: req.nextUrl.searchParams.get("dryRun") ?? undefined,
     segment: req.nextUrl.searchParams.get("segment") ?? undefined,
+    to: req.nextUrl.searchParams.get("to") ?? undefined,
   };
 
   const parsed = QuerySchema.safeParse(raw);
@@ -85,10 +93,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // dryRun defaults to true when the param is absent (safe: send nothing).
-  const { dryRun = true, segment } = parsed.data;
+  const { dryRun = true, segment, to } = parsed.data;
 
   try {
-    const result = await runNurturePipeline(prisma, { dryRun, segment });
+    const result = await runNurturePipeline(prisma, { dryRun, segment, testTo: to });
     return NextResponse.json(result, { status: 200 });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

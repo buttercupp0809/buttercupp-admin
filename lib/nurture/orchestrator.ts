@@ -67,6 +67,14 @@ export interface OrchestratorOptions {
   segment?: number;
   /** Override the global daily ceiling (useful for tests). */
   dailyCeiling?: number;
+  /**
+   * Test override: send the selected segment's rendered email to THIS address
+   * only, bypassing eligibility, cadence caps, suppression, and EmailSendLog.
+   * No real user is required and no analytics row is written. Still honors
+   * dryRun (dryRun => render but do not send). Pair with `segment` to preview
+   * one template; omit `segment` to send all four to the address.
+   */
+  testTo?: string;
 }
 
 export interface SegmentSummary {
@@ -447,6 +455,77 @@ function remaining(ceiling: number, sent: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Test send (?to= override)
+// ---------------------------------------------------------------------------
+
+/**
+ * Render one segment's email and send it to a single arbitrary address for
+ * testing. Deliberately does NOT: query eligibility, apply caps/suppression,
+ * require a real User row, or write an EmailSendLog row. Uses a random public
+ * character for the artwork/voice. Honors dryRun (render only, no send).
+ */
+async function sendTestToAddress(
+  prisma: PrismaClient,
+  address: string,
+  config: SegmentConfig,
+  dryRun: boolean
+): Promise<{ skipped: boolean; ok: boolean; reason?: string }> {
+  const charData = await fetchRandomCharacter(prisma);
+  if (!charData) {
+    return { skipped: true, ok: false, reason: "no_character" };
+  }
+
+  const imageUrl = await resolveImageUrl(charData.imageKey);
+  const char: CharCtx = {
+    name: charData.name,
+    bio: charData.bio,
+    gender: charData.gender,
+    greeting: charData.greeting,
+    personality: charData.personality,
+    backstory: charData.backstory,
+    imageUrl,
+  };
+
+  const firstName = address.split("@")[0];
+  const copy = config.buildCopyFn(char, firstName);
+  const ctaUrl = `${APP_URL}${config.ctaPath}${charData.id}`;
+
+  // No real user, so mint a preview-scoped token purely for the link format.
+  // (It will not resolve to a user; unsubscribing from a test email is a no-op.)
+  const token = generateUnsubscribeToken(`test:${address}`);
+  const unsubscribeUrl = `${ADMIN_URL}/api/unsubscribe?token=${encodeURIComponent(token)}`;
+
+  const logoInline = buildLogoInlineImage();
+  const html = renderOverlayEmail({
+    char,
+    copy,
+    ctaUrl,
+    recipientEmail: address,
+    unsubscribeUrl,
+    inlineLogo: logoInline !== null,
+  });
+
+  if (dryRun) {
+    return { skipped: false, ok: true };
+  }
+
+  const result = await sendBrevoEmail({
+    to: address,
+    fromName: char.name,
+    subject: `[TEST] ${copy.subject}`,
+    html,
+    headers: {
+      "List-Unsubscribe": `<${unsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+    tags: [`segment-${config.segment}`, config.campaign, "test"],
+    ...(logoInline ? { inlineImages: [logoInline] } : {}),
+  });
+
+  return { skipped: false, ok: result.ok, reason: result.error };
+}
+
+// ---------------------------------------------------------------------------
 // Main orchestrator
 // ---------------------------------------------------------------------------
 
@@ -454,7 +533,12 @@ export async function runNurturePipeline(
   prisma: PrismaClient,
   options: OrchestratorOptions = {}
 ): Promise<OrchestratorResult> {
-  const { dryRun = true, segment: onlySegment, dailyCeiling = DAILY_CEILING } = options;
+  const {
+    dryRun = true,
+    segment: onlySegment,
+    dailyCeiling = DAILY_CEILING,
+    testTo,
+  } = options;
 
   // Consume any already-sent quota for today.
   const alreadySentToday = await countTotalSentToday(prisma);
@@ -494,6 +578,31 @@ export async function runNurturePipeline(
   const activeConfigs = onlySegment
     ? segmentConfigs.filter((c) => c.segment === onlySegment)
     : segmentConfigs;
+
+  // Test override: render + send to a single address only. Bypasses eligibility,
+  // caps, suppression, the daily ceiling, and EmailSendLog. Guarded upstream by
+  // CRON_SECRET in the route handler.
+  if (testTo) {
+    const testResults: SegmentSummary[] = [];
+    for (const config of activeConfigs) {
+      const r = await sendTestToAddress(prisma, testTo, config, dryRun);
+      testResults.push({
+        segment: config.segment,
+        eligible: 1,
+        skipped: r.skipped ? 1 : 0,
+        sent: !r.skipped && r.ok ? 1 : 0,
+        failed: !r.skipped && !r.ok ? 1 : 0,
+      });
+      if (!r.skipped && r.ok && !dryRun) await sleep(SEND_GAP_MS);
+    }
+    return {
+      dryRun,
+      totalSent: testResults.reduce((a, r) => a + r.sent, 0),
+      totalFailed: testResults.reduce((a, r) => a + r.failed, 0),
+      segments: testResults,
+      cappedByDailyCeiling: false,
+    };
+  }
 
   const results: SegmentSummary[] = [];
   let capped = false;
