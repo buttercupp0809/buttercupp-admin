@@ -1,0 +1,45 @@
+name: Daily Nurture Emails
+
+on:
+  schedule:
+    # 9:00 AM UTC every day
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no emails sent)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+      segment:
+        description: 'Run only this segment (1-4), or leave blank for all'
+        required: false
+        default: ''
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger nurture pipeline
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          SEGMENT="${{ github.event.inputs.segment }}"
+
+          URL="https://admin.buttercupp.fun/api/cron/nurture?dryRun=${DRY_RUN}"
+          if [ -n "$SEGMENT" ]; then
+            URL="${URL}&segment=${SEGMENT}"
+          fi
+
+          echo "POST $URL"
+
+          RESPONSE=$(curl -sf -X POST "$URL" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+
+          echo "$RESPONSE" | jq .
+
+          FAILED=$(echo "$RESPONSE" | jq -r '.totalFailed // 0')
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::warning::$FAILED email(s) failed to send"
+          fi
