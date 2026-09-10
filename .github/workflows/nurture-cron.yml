@@ -33,11 +33,21 @@ jobs:
 
           echo "POST $URL"
 
-          RESPONSE=$(curl -sf -X POST "$URL" \
+          HTTP_CODE=$(curl -s -o /tmp/response_body.txt -w "%{http_code}" -X POST "$URL" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json")
 
-          echo "$RESPONSE" | jq .
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response body:"
+          cat /tmp/response_body.txt
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::Cron endpoint returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          RESPONSE=$(cat /tmp/response_body.txt)
+          echo "$RESPONSE" | jq . || true
 
           FAILED=$(echo "$RESPONSE" | jq -r '.totalFailed // 0')
           if [ "$FAILED" -gt 0 ]; then
