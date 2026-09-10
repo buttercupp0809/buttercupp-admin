@@ -38,7 +38,8 @@ const caringChar: CharCtx = {
   backstory: "A supportive friend.",
 };
 
-// No personality keywords: exercises the default copy branch of every builder.
+// No personality keywords: copy is single-variant now, but keep a generic
+// character in the suite to prove copy does not depend on personality.
 const genericChar: CharCtx = {
   ...baseChar,
   personality: "neutral",
@@ -46,42 +47,36 @@ const genericChar: CharCtx = {
 };
 
 describe("buildSeg1Copy", () => {
-  it("returns subject, preheader, lines, cta, signature", () => {
+  it("returns subject, preheader, at least one line, cta", () => {
     const copy = buildSeg1Copy(baseChar, "Alice");
     expect(copy.subject).toBeTruthy();
     expect(copy.preheader).toBeTruthy();
     expect(copy.lines.length).toBeGreaterThan(0);
     expect(copy.cta).toBeTruthy();
-    expect(copy.signature).toBe("Aria");
   });
 
-  it("uses mystery copy branch for mysterious personality", () => {
+  it("is short (1-2 lines) and names the character in text + subject", () => {
     const copy = buildSeg1Copy(baseChar, "Alice");
-    expect(copy.subject.toLowerCase()).toMatch(/know|started|waiting/);
+    expect(copy.lines.length).toBeLessThanOrEqual(2);
+    expect(copy.subject).toContain("Aria");
+    const combined = copy.lines.join(" ");
+    expect(combined).toContain("Aria");
+    expect(combined).toContain("Alice");
   });
 
-  it("uses flirty copy branch for flirtatious personality", () => {
-    const copy = buildSeg1Copy(flirtyChar, "Alice");
-    expect(copy.subject).toMatch(/Alice/);
-  });
-
-  it("uses caring copy branch for caring personality", () => {
-    const copy = buildSeg1Copy(caringChar, "Alice");
-    expect(copy.subject).toMatch(/Alice|finished/);
-  });
-
-  it("includes greeting snippet when greeting is non-empty", () => {
+  it("does not include the character bio/description", () => {
     const copy = buildSeg1Copy(baseChar, "Alice");
     const combined = copy.lines.join(" ");
-    expect(combined).toMatch(/waiting for you/i);
+    expect(combined).not.toContain("mysterious companion");
   });
 });
 
 describe("buildSeg2Copy", () => {
-  it("returns short copy (2 lines for generic personality)", () => {
-    const genericChar: CharCtx = { ...baseChar, personality: "neutral", backstory: "" };
+  it("is short (1-2 lines) and names the character", () => {
     const copy = buildSeg2Copy(genericChar, "Bob");
-    expect(copy.lines.length).toBeLessThanOrEqual(3);
+    expect(copy.lines.length).toBeLessThanOrEqual(2);
+    expect(copy.lines.join(" ")).toContain("Aria");
+    expect(copy.subject).toContain("Aria");
   });
 });
 
@@ -95,9 +90,8 @@ describe("buildSeg3Copy", () => {
   });
 
   it("mentions premium as a soft nudge", () => {
-    const copy = buildSeg3Copy(flirtyChar, "Alice");
-    const allText = copy.lines.join(" ").toLowerCase();
-    expect(allText).toMatch(/premium/);
+    const copy = buildSeg3Copy(baseChar, "Alice");
+    expect(copy.lines.join(" ").toLowerCase()).toMatch(/premium/);
   });
 });
 
@@ -108,6 +102,12 @@ describe("buildSeg4Copy", () => {
       const allText = [copy.subject, copy.preheader, ...copy.lines].join(" ").toLowerCase();
       expect(allText).not.toContain("unlimited");
     }
+  });
+
+  it("is short (1-2 lines) and names the character", () => {
+    const copy = buildSeg4Copy(baseChar, "Alice");
+    expect(copy.lines.length).toBeLessThanOrEqual(2);
+    expect(copy.lines.join(" ")).toContain("Aria");
   });
 });
 
@@ -134,6 +134,17 @@ describe("renderOverlayEmail", () => {
     expect(html).toContain("Aria");
   });
 
+  it("renders the character photo as a real <img> (not CSS background-image)", () => {
+    const html = renderOverlayEmail({
+      char: { ...baseChar, imageUrl: "https://cdn.example.com/aria.webp" },
+      copy,
+      ctaUrl: "https://buttercupp.fun/onboarding",
+      unsubscribeUrl: "https://example.com/unsub",
+    });
+    expect(html).toContain('<img src="https://cdn.example.com/aria.webp"');
+    expect(html).not.toContain("background-image");
+  });
+
   it("includes the unsubscribe URL in footer", () => {
     const unsubUrl = "https://admin.buttercupp.fun/api/unsubscribe?token=tok123";
     const html = renderOverlayEmail({
@@ -157,14 +168,13 @@ describe("renderOverlayEmail", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
-  it("renders fallback hero block when imageUrl is empty", () => {
+  it("renders the fallback hero block when imageUrl is empty", () => {
     const html = renderOverlayEmail({
       char: { ...baseChar, imageUrl: "" },
       copy,
       ctaUrl: "https://buttercupp.fun/onboarding",
       unsubscribeUrl: "https://example.com/unsub",
     });
-    // Should have a gradient fallback, not a background-image rule.
     expect(html).toContain("linear-gradient(160deg");
     expect(html).not.toContain("background-image:url('')");
   });
@@ -176,9 +186,7 @@ describe("renderOverlayEmail", () => {
       ctaUrl: "https://buttercupp.fun/onboarding",
       unsubscribeUrl: "https://example.com/unsub",
     });
-    // No CID image (which would be broken with no backing attachment).
     expect(html).not.toContain("cid:");
-    // The text wordmark is present instead.
     expect(html).toContain(">Butter<");
     expect(html).toContain(">cupp<");
   });

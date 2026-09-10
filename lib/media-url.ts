@@ -42,40 +42,42 @@ function bucketForKey(key: string): string {
   return process.env.S3_BUCKET ?? "";
 }
 
-/**
- * Resolve a stored CharacterMedia URL into a publicly fetchable URL for use in
- * email <img> tags. Tries CloudFront first (no signing needed), then S3 presign.
- * Returns an empty string on failure (email renders without an image).
- */
-export async function resolveImageUrl(
-  raw: string | null | undefined
-): Promise<string> {
-  if (!raw) return "";
-
-  const cloudfrontUrl = (process.env.CLOUDFRONT_URL ?? "").replace(/\/$/, "");
-
-  if (raw.startsWith("http://") || raw.startsWith("https://")) {
-    // If it's already an amazonaws.com URL, swap for CloudFront.
-    if (cloudfrontUrl && raw.includes("amazonaws.com")) {
-      const key = raw.replace(/^https?:\/\/[^/]+\//, "");
-      return `${cloudfrontUrl}/${key}`;
-    }
-    return raw;
-  }
-
-  // It's a stored key / path.
-  const key = raw.replace(/^\/+/, "");
-
-  // Prefer CloudFront (no signing overhead, no expiry).
-  if (cloudfrontUrl) return `${cloudfrontUrl}/${key}`;
-
+/** Presign an S3 GET for a stored key (7-day expiry, the SigV4 maximum). */
+async function presignKey(key: string): Promise<string> {
   const bucket = bucketForKey(key);
   if (!bucket) return "";
-
   try {
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
     return await getSignedUrl(getS3Client(), cmd, { expiresIn: 7 * 24 * 3600 });
   } catch {
     return "";
   }
+}
+
+/**
+ * Resolve a stored CharacterMedia URL into a publicly fetchable URL for use in
+ * email <img> tags. We presign S3 directly rather than use the CloudFront CDN:
+ * the distribution requires signed URLs, so an unsigned CDN link 403s in an
+ * email client. Presigned S3 URLs are good for 7 days. Returns an empty string
+ * on failure (email renders without an image).
+ */
+export async function resolveImageUrl(
+  raw: string | null | undefined
+): Promise<string> {
+  if (!raw) return "";
+
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    // An S3/CloudFront URL: extract the key and presign it (unsigned links 403).
+    // Any other absolute URL (already public/signed) is used as-is.
+    if (/amazonaws\.com|cloudfront\.net/i.test(raw)) {
+      const key = decodeURIComponent(
+        raw.replace(/^https?:\/\/[^/]+\//, "").split("?")[0]
+      );
+      return presignKey(key);
+    }
+    return raw;
+  }
+
+  // Stored key / path.
+  return presignKey(raw.replace(/^\/+/, ""));
 }
