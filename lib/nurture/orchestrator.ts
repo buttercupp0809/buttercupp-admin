@@ -280,7 +280,8 @@ async function sendToUser(
   campaign: string,
   buildCopyFn: (char: CharCtx, firstName: string) => ReturnType<typeof buildSeg1Copy>,
   ctaPath: string,
-  dryRun: boolean
+  dryRun: boolean,
+  appendCharId?: boolean
 ): Promise<{ skipped: boolean; ok: boolean; reason?: string }> {
   // Idempotency: already sent today for this segment.
   const sentToday = await countTodaySends(prisma, user.userId, segment);
@@ -327,7 +328,7 @@ async function sendToUser(
   const firstName =
     user.displayName?.split(" ")[0] ?? user.email.split("@")[0];
   const copy = buildCopyFn(char, firstName);
-  const ctaUrl = `${APP_URL}${ctaPath}${charData.id}`;
+  const ctaUrl = `${APP_URL}${ctaPath}${appendCharId !== false ? charData.id : ""}`;
 
   // Unsubscribe token and URL.
   const token = await ensureUnsubscribeToken(prisma, user.userId);
@@ -402,6 +403,8 @@ interface SegmentConfig {
   segment: number;
   campaign: string;
   ctaPath: string;
+  /** When false, charData.id is NOT appended to ctaPath (e.g. Seg1 /onboarding has no char). */
+  appendCharId?: boolean;
   buildCopyFn: (char: CharCtx, firstName: string) => ReturnType<typeof buildSeg1Copy>;
   fetchFn: (prisma: PrismaClient) => Promise<EligibleUser[]>;
 }
@@ -427,7 +430,8 @@ async function runSegment(
       config.campaign,
       config.buildCopyFn,
       config.ctaPath,
-      dryRun
+      dryRun,
+      config.appendCharId
     );
 
     if (result.skipped) {
@@ -488,7 +492,7 @@ async function sendTestToAddress(
 
   const firstName = address.split("@")[0];
   const copy = config.buildCopyFn(char, firstName);
-  const ctaUrl = `${APP_URL}${config.ctaPath}${charData.id}`;
+  const ctaUrl = `${APP_URL}${config.ctaPath}${config.appendCharId !== false ? charData.id : ""}`;
 
   // No real user, so mint a preview-scoped token purely for the link format.
   // (It will not resolve to a user; unsubscribing from a test email is a no-op.)
@@ -549,6 +553,7 @@ export async function runNurturePipeline(
       segment: 1,
       campaign: "onboarding-drip",
       ctaPath: "/onboarding",
+      appendCharId: false,
       buildCopyFn: (char, firstName) => buildSeg1Copy(char, firstName),
       fetchFn: (p) => fetchSegment1(p),
     },
