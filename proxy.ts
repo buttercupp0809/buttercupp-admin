@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "poppy-admin-token";
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  // Nurture endpoints carry their own auth (CRON_SECRET bearer / signed token),
+  // so they must bypass the admin-cookie gate. The cron caller is a scheduler
+  // and unsubscribe is clicked by email recipients; neither has an admin cookie.
+  "/api/cron",
+  "/api/unsubscribe",
+];
 
 const secret = new TextEncoder().encode(process.env.ADMIN_JWT_SECRET || "");
 
