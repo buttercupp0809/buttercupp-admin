@@ -45,7 +45,6 @@ export async function fetchSegment1(
       completedOnboardingAt: null,
       subscriptionTier: "free",
       unsubscribedAt: null,
-      emailVerifiedAt: { not: null },
       email: { not: "" },
       id: { notIn: HIDDEN_USER_IDS },
     },
@@ -86,7 +85,6 @@ export async function fetchSegment2(
       completedOnboardingAt: { not: null },
       subscriptionTier: "free",
       unsubscribedAt: null,
-      emailVerifiedAt: { not: null },
       email: { not: "" },
       id: { notIn: HIDDEN_USER_IDS },
       // Exclude users who have any conversation with at least one real message.
@@ -134,7 +132,6 @@ export async function fetchSegment3(
       completedOnboardingAt: { not: null },
       subscriptionTier: "free",
       unsubscribedAt: null,
-      emailVerifiedAt: { not: null },
       email: { not: "" },
       id: { notIn: HIDDEN_USER_IDS },
       conversations: {
@@ -195,7 +192,6 @@ export async function fetchSegment4(
     where: {
       subscriptionTier: { not: "free" },
       unsubscribedAt: null,
-      emailVerifiedAt: { not: null },
       email: { not: "" },
       id: { notIn: HIDDEN_USER_IDS },
     },
