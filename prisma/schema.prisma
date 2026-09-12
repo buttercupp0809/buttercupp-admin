@@ -115,6 +115,7 @@ model User {
   lastLoginAt            DateTime?
   lastLoginDeviceType    String?
   lastLoginUserAgent     String?
+  lastLoginCountry       String?
   // Email nurture pipeline: mirrors poppy schema unsubscribe fields.
   // Owned by poppy repo; admin reads + writes via the unsubscribe endpoint.
   unsubscribedAt         DateTime?

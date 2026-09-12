@@ -23,6 +23,8 @@ import {
   Crown,
   Activity,
   ShieldAlert,
+  Globe,
+  TrendingUp,
 } from "lucide-react";
 import { formatCountry, formatDate } from "@/lib/utils";
 
@@ -50,11 +52,12 @@ export default function DashboardPage() {
   const [tokens, setTokens] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [events, setEvents] = useState<any[]>([]);
+  const [topConversionCountry, setTopConversionCountry] = useState<{ country: string; count: number }>({ country: "", count: 0 });
 
   const days = range === "all" ? "365" : range;
 
   const fetchAll = useCallback(async () => {
-    const [s, g, a, t, c, tk, e] = await Promise.all([
+    const [s, g, a, t, c, tk, e, conv] = await Promise.all([
       fetch("/api/analytics/summary").then((r) => r.json()),
       fetch(`/api/analytics/growth?days=${days}`).then((r) => r.json()),
       fetch(`/api/analytics/active?days=${days}`).then((r) => r.json()),
@@ -62,6 +65,7 @@ export default function DashboardPage() {
       fetch("/api/analytics/countries").then((r) => r.json()),
       fetch("/api/analytics/tokens").then((r) => r.json()),
       fetch("/api/analytics/events").then((r) => r.json()),
+      fetch("/api/analytics/countries/conversions").then((r) => r.json()),
     ]);
     setSummary(s);
     setGrowth(g);
@@ -70,6 +74,7 @@ export default function DashboardPage() {
     setCountries(c);
     setTokens(tk);
     setEvents(e);
+    setTopConversionCountry(conv);
   }, [days]);
 
   useEffect(() => {
@@ -141,6 +146,42 @@ export default function DashboardPage() {
           }
           urgent={summary.pendingModeration > 0}
         />
+      </div>
+
+      {/* Country Highlights */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Top User Country</CardTitle>
+            <Globe className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {countries[0] ? formatCountry(countries[0].country) : "—"}
+            </div>
+            {countries[0] && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {countries[0].count.toLocaleString()} users
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Top Conversion Country</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {topConversionCountry.country ? formatCountry(topConversionCountry.country) : "—"}
+            </div>
+            {topConversionCountry.country && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {topConversionCountry.count.toLocaleString()} paid subscribers
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts Grid */}

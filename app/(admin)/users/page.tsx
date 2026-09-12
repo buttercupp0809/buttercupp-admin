@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatCountry } from "@/lib/utils";
 
 type Tier = "all" | "free" | "premium" | "pro";
 
@@ -34,6 +34,7 @@ interface UserRow {
   createdAt: string;
   lastLoginAt: string | null;
   lastLoginDeviceType: string | null;
+  lastLoginCountry: string | null;
   profile: { displayName: string | null; gender: string | null } | null;
 }
 
@@ -49,6 +50,7 @@ function formatDevice(device: string | null): string {
   if (!device) return "—";
   return device.charAt(0).toUpperCase() + device.slice(1);
 }
+
 
 const TIER_OPTIONS: { value: Tier; label: string }[] = [
   { value: "all", label: "All Tiers" },
@@ -158,19 +160,20 @@ export default function UsersPage() {
               <TableHead>Age Verification</TableHead>
               <TableHead>Onboarding</TableHead>
               <TableHead>Device</TableHead>
+              <TableHead>Country</TableHead>
               <TableHead className="text-right">Created</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -213,6 +216,9 @@ export default function UsersPage() {
                     <Badge variant={deviceVariant(user.lastLoginDeviceType)} className="text-xs">
                       {formatDevice(user.lastLoginDeviceType)}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatCountry(user.lastLoginCountry)}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground text-sm">
                     {formatDate(user.createdAt)}

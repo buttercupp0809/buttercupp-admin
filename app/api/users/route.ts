@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
         // is heavy and only surfaced on the user detail page.
         lastLoginAt: true,
         lastLoginDeviceType: true,
+        lastLoginCountry: true,
         profile: { select: { displayName: true, gender: true } },
       },
       orderBy: { createdAt: "desc" },

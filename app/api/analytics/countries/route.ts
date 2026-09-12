@@ -6,12 +6,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return safeRoute<{ country: string; count: number }[]>(async () => {
     const countries = await prisma.user.groupBy({
-      by: ["jurisdiction"],
-      _count: { jurisdiction: true },
-      where: { jurisdiction: { not: null } },
-      orderBy: { _count: { jurisdiction: "desc" } },
+      by: ["lastLoginCountry"],
+      _count: { lastLoginCountry: true },
+      where: { lastLoginCountry: { not: null } },
+      orderBy: { _count: { lastLoginCountry: "desc" } },
       take: 20,
     });
-    return countries.map((c) => ({ country: c.jurisdiction ?? "Unknown", count: c._count.jurisdiction }));
+    return countries.map((c) => ({ country: c.lastLoginCountry ?? "Unknown", count: c._count.lastLoginCountry }));
   }, []);
 }
