@@ -1,10 +1,14 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { safeRoute } from "@/lib/safe-route";
+import { getAdminEmail } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const email = await getAdminEmail();
+  if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = req.nextUrl;
   const days = parseInt(searchParams.get("days") ?? "14");
 

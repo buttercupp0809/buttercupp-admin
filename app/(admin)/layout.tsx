@@ -1,10 +1,15 @@
+import { redirect } from "next/navigation";
+import { getAdminEmail } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const email = await getAdminEmail();
+  if (!email) redirect("/login");
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
